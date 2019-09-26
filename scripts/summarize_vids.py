@@ -15,15 +15,6 @@ from shutil import rmtree
 from tempfile import TemporaryDirectory
 from campvideo.video import Video
 
-# function for computing total number of frames using ffprobe
-def num_frames(fpath):
-    # probe file
-    probe = ffmpeg.probe(fpath)
-    # select video stream
-    stream = next((stream for stream in probe['streams'] 
-                   if stream['codec_type'] == 'video'), None)
-    return int(stream['nb_frames']) if stream is not None else None
-
 # command line argument parser
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()  
