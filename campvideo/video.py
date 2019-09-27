@@ -147,7 +147,7 @@ class Video:
         
         # feature class instantiation
         hog = HOG(self.resolution)
-        labhist = Histogram(self.resolution)
+        labhist = LabHistogram(self.resolution)
         
         # number of frames after downsampling
         n = len(frame_inds)
@@ -271,7 +271,7 @@ class Video:
         return dsf * best_kf_ind
         
             
-class Histogram:
+class LabHistogram:
     def __init__(self,size,nbins=23):
         self.dimension = nbins ** 3
         self.numel = np.prod(size)
