@@ -25,7 +25,7 @@ def parse_arguments(argv):
                         help='Penalty for summary length')
     parser.add_argument('-dsf',default=1,type=int,
                         help='Downsampling factor')
-    parser.add_argument('-wf','--write-frames',action='store_true',default=False,
+    parser.add_argument('-wf',action='store_true',default=False,
                         help='Flag for writing keyframes to .png')
 
     return parser.parse_args(argv)
@@ -69,7 +69,7 @@ def main(args):
             
             # compute keyframe indices
             v_res = Video(rfpath)
-            kf_ind = v_res.kf_adaptive(rfpath,l1=l1,l2=l2,dsf=dsf)
+            kf_ind = v_res.kf_adaptive(l1=l1,l2=l2,dsf=dsf)
             
             # rescale kf_ind due to FPS differences between original and resized video
             kf_ind = (v_orig.frame_count * kf_ind) // v_res.frame_count
