@@ -10,7 +10,7 @@ import stat
 import sys
 
 from cv2 import imwrite
-from os.path import join,relpath,splitext
+from os.path import dirname,join,relpath,splitext
 from shutil import rmtree
 from tempfile import TemporaryDirectory
 from campvideo.video import Video
@@ -45,7 +45,7 @@ def main(args):
     n = len(fpaths)
                                          
     # output directory for summary (mimics folder structure of input)
-    summ_dir = vid_dir + '_summaries'
+    summ_dir = dirname(vid_dir) + '_summaries'
     # delete directory if it exists
     if os.path.exists(summ_dir):
         os.chmod(summ_dir, stat.S_IWUSR) # grant all privileges
