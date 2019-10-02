@@ -7,12 +7,12 @@ setup(
     long_description=open('README.rst').read(),
     author='Alex Tarr',
     author_email='atarr3@gmail.com',
-	url='https://github.com/atarr3/campvideo',
+    url='https://github.com/atarr3/campvideo',
     packages=['campvideo'],
     scripts=['bin/audio_feats.py','bin/match_vids','bin/summarize_vids.py'],
-    license='LICENSE',
+    license='MIT License',
     install_requires=[
-        "ffmpeg-python",
+        	"ffmpeg-python",
 		"numpy",
 		"opencv-python >= 3.4.2",
 		"pandas >= 0.25"
