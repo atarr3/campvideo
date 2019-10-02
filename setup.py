@@ -15,7 +15,7 @@ setup(
         	"ffmpeg-python",
 		"numpy",
 		"opencv-python >= 3.4.2",
-		"pandas >= 0.25"
+		"pandas >= 0.25",
 		"scikit-learn >= 0.20.1",
 		"scipy >= 1.1.0"
     ]
