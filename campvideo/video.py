@@ -165,12 +165,12 @@ class Video:
         return (labhist_feat, hog_feat)
     
     # function for adaptively selecting keyframes via submodular optimization
-    def kf_adaptive(self,l1=1,l2=5,niter=10,dsf=1):
+    def kf_adaptive(self,l1=1.5,l2=3.5,niter=50,dsf=1):
         """Generates anarray of keyframes using an adaptive keyframe selection
            algorithm. 
         
         Args:
-            l1:  Penalty for representativeness. Default is 1
+            l1:  Penalty for uniqueness. Default is 1
             l2:  Penalty for summary length. Default is 5
             dsf: Downsampling factor for thinning frames before running the
                  algorithm. Increasing this will improve runtime. Default is 1
