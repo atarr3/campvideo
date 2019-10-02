@@ -9,20 +9,23 @@ import os
 import stat
 import sys
 
+from campvideo.video import Video
 from cv2 import imwrite
-from os.path import dirname,join,relpath,splitext
+from os.path import normpath,join,relpath,splitext
 from shutil import rmtree
 from tempfile import TemporaryDirectory
-from campvideo.video import Video
+from timeit import default_timer
 
 # command line argument parser
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()  
     parser.add_argument('vid_dir',type=str,help='Directory of .mp4 videos')
-    parser.add_argument('-l1',default=1,type=float,
-                        help='Penalty for representativeness')
-    parser.add_argument('-l2',default=5,type=float,
+    parser.add_argument('-l1',default=1.5,type=float,
+                        help='Penalty for uniqueness')
+    parser.add_argument('-l2',default=3.5,type=float,
                         help='Penalty for summary length')
+    parser.add_argument('-n',default=50,type=int,
+                        help='Number of iterations to run the optimization algorithm')
     parser.add_argument('-dsf',default=1,type=int,
                         help='Downsampling factor')
     parser.add_argument('-wf',action='store_true',default=False,
@@ -45,7 +48,7 @@ def main(args):
     n = len(fpaths)
                                          
     # output directory for summary (mimics folder structure of input)
-    summ_dir = dirname(vid_dir) + '_summaries'
+    summ_dir = normpath(vid_dir) + '_summaries'
     # delete directory if it exists
     if os.path.exists(summ_dir):
         os.chmod(summ_dir, stat.S_IWUSR) # grant all privileges
@@ -56,6 +59,7 @@ def main(args):
     with TemporaryDirectory() as temp:
         for i,fpath in enumerate(fpaths):
             print('Processing video {0} of {1}... '.format(i+1,n),end='',flush=True)
+            s = default_timer()
             
             # resize video to 320 x 240
             rfpath = join(temp,'resized.mp4')
@@ -92,7 +96,8 @@ def main(args):
                             imwrite(fname,kf)
             
             # video summarized
-            print('Done!')
+            f = default_timer() - s
+            print("Done in %.1fs" % f)
         
 if __name__ == '__main__':
     main(parse_arguments(sys.argv[1:]))
