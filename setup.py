@@ -9,7 +9,7 @@ setup(
     author_email='atarr3@gmail.com',
     url='https://github.com/atarr3/campvideo',
     packages=['campvideo'],
-    scripts=['bin/audio_feats.py','bin/match_vids','bin/summarize_vids.py'],
+    scripts=['bin/audio_feats.py','bin/match_vids.py','bin/summarize_vids.py'],
     license='MIT License',
     install_requires=[
         	"ffmpeg-python",
