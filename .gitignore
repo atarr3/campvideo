@@ -1,2 +1,7 @@
 # compiled python classes
 **/__pycache__/
+
+# distribution / packaging files
+build/
+dist/
+*.egg-info/

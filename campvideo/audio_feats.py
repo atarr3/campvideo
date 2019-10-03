@@ -4,13 +4,12 @@ from __future__ import print_function
 
 import os
 import pandas as pd
-import sys
 
 from argparse import ArgumentParser
 from campvideo.audio import Spectrogram
 from os.path import join,basename,splitext
 
-def parse_arguments(argv):
+def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('vid_dir',help='Path to directory containing .mp4 '
                         'files for feature extraction')
@@ -20,11 +19,12 @@ def parse_arguments(argv):
     parser.add_argument('-wp','--wmp_path',default=None,help='Optional path to '
                         'WMP file for filtering out unmatched files in vid_dir')
     
-    return parser.parse_args(argv)
+    return parser.parse_args()
 
-if __name__ == '__main__':
+def main():
     # get command line arguments
-    args = parse_arguments(sys.argv[1:])
+    args = parse_arguments()
+    
     vid_dir = args.vid_dir
     wmp_path = args.wmp_path
     feature_set = args.feature_set
@@ -68,3 +68,6 @@ if __name__ == '__main__':
         
     # save in vid_dir
     wmp.to_csv(join(vid_dir,'mfeats_' + feature_set + '.csv'))
+
+if __name__ == '__main__':
+    main()

@@ -7,7 +7,6 @@ import ffmpeg
 import numpy as np
 import os
 import stat
-import sys
 
 from campvideo.video import Video
 from cv2 import imwrite
@@ -17,7 +16,7 @@ from tempfile import TemporaryDirectory
 from timeit import default_timer
 
 # command line argument parser
-def parse_arguments(argv):
+def parse_arguments():
     parser = argparse.ArgumentParser()  
     parser.add_argument('vid_dir',type=str,help='Directory of .mp4 videos')
     parser.add_argument('-l1',default=1.5,type=float,
@@ -31,10 +30,12 @@ def parse_arguments(argv):
     parser.add_argument('-wf',action='store_true',default=False,
                         help='Flag for writing keyframes to .png')
 
-    return parser.parse_args(argv)
+    return parser.parse_args()
 
 # script for summarizing a collection of videos
-def main(args):
+def main():
+    args = parse_arguments()
+    
     # video directory and video paths
     vid_dir = args.vid_dir
     l1,l2 = args.l1, args.l2
@@ -100,4 +101,4 @@ def main(args):
             print("Done in %.1fs" % f)
         
 if __name__ == '__main__':
-    main(parse_arguments(sys.argv[1:]))
+    main()

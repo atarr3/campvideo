@@ -5,7 +5,6 @@ from __future__ import print_function
 import argparse
 import numpy as np
 import os
-import sys
 
 from campvideo.audio import Spectrogram,get_dur,vid2wav
 from collections import defaultdict
@@ -157,7 +156,7 @@ def _grouper(seq):
         seq = rest
     return result
 
-def _parse_arguments(argv):
+def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('dirs', help='Path(s) to directories for matching. If '
                         'one directory is given, the files are clustered. If '
@@ -177,12 +176,13 @@ def _parse_arguments(argv):
                         'fingerprints. If the BER is below this value, a '
                         'match is declared')
 
-    return parser.parse_args(argv)
+    return parser.parse_args()
 
 # main script for matching videos / audio files
-if __name__ == '__main__':
+def main():
     # get CL arguments
-    args = _parse_arguments(sys.argv[1:])
+    args = parse_arguments()
+    
     dirs,match_folders,find_all = args.dirs,args.match_folders,args.find_all
     dur,threshold = args.dur,args.thr
 
@@ -291,3 +291,6 @@ if __name__ == '__main__':
                                     for cluster in clusters]
                                   ) + '\n' # append newline between folders
                         )
+
+if __name__ == '__main__':
+    main()
