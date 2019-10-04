@@ -2,9 +2,9 @@ from setuptools import setup
 
 setup(
     name='campvideo',
-    version='0.2.2',
+    version='0.2.3',
     description='Analyzes political campaign advertisements.',
-    long_description=open('README.rst').read(),
+    long_description=open('README.rst').read() + '\n\n' + open('HISTORY.rst').read(),
     author='Alex Tarr',
     author_email='atarr3@gmail.com',
     url='https://github.com/atarr3/campvideo',

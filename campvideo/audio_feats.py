@@ -6,18 +6,20 @@ import os
 import pandas as pd
 
 from argparse import ArgumentParser
-from campvideo.audio import Spectrogram
+from campvideo.audio import Audio
 from os.path import join,basename,splitext
 
 def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('vid_dir',help='Path to directory containing .mp4 '
                         'files for feature extraction')
-    parser.add_argument('-fs','--feature_set',choices=['all','best','no_joint'],
-                        default='best',help='Which feature set to use when '
-                        'computing the audio feature')
-    parser.add_argument('-wp','--wmp_path',default=None,help='Optional path to '
-                        'WMP file for filtering out unmatched files in vid_dir')
+    parser.add_argument('-fs','--feature-set',choices=['all','best','no-joint'],
+                        default='best',help='Feature set to use when computing '
+                        'the audio feature')
+    parser.add_argument('-mf','--matches-file',default=None,help='Optional path ' 
+                        'to file for filtering out unmatched files in vid_dir.'
+                        ' File must contain a column \'uid\' containing the '
+                        'list of filenames to keep without the extension')
     
     return parser.parse_args()
 
@@ -26,23 +28,23 @@ def main():
     args = parse_arguments()
     
     vid_dir = args.vid_dir
-    wmp_path = args.wmp_path
+    matches_path = args.matches_file
     feature_set = args.feature_set
     
     # get video paths
     fpaths = [join(root,fname) for root,_,fnames in os.walk(vid_dir)
-              for fname in fnames if fname.endswith(('.mp4','.wav'))]
+              for fname in fnames if fname.endswith(('.mp4','.wav','.wmv'))]
     # sort
-    fpaths = sorted(fpaths,key=lambda s: splitext(basename(s))[0])
+    fpaths = sorted(fpaths,key=lambda s: basename(s))
     
     # filter out unmatched files if wmp_path specified
-    if wmp_path is not None:
+    if matches_path is not None:
         # video IDs
-        wmp = pd.read_csv(wmp_path,usecols=['uid']
-                         ).drop_duplicates(subset='uid'
-                         ).set_index('uid')
+        matches = pd.read_csv(matches_path,usecols=['uid']
+                             ).drop_duplicates(subset='uid'
+                             ).set_index('uid')
         fpaths_filtered = [fpath for fpath in fpaths 
-                           if splitext(basename(fpath))[0] in wmp.index]
+                           if splitext(basename(fpath))[0] in matches.index]
     else:
         fpaths_filtered = fpaths
         
@@ -55,19 +57,19 @@ def main():
         fdim = 412
         
     # feature data frame
-    feat = pd.DataFrame(index=wmp.index,columns=list(range(fdim)),dtype=float)
+    feat = pd.DataFrame(index=matches.index,columns=list(range(fdim)),dtype=float)
         
     # compute feature
     for fpath in fpaths_filtered:
         # file ID
         fname = splitext(basename(fpath))[0]
         # feature
-        s = Spectrogram(fpath,fs=22050,nfft=1024,pre_emph=0.95)
+        aud = Audio(fpath,fs=22050,nfft=1024,pre_emph=0.95)
         # add to dataframe
-        feat.loc[fname] = s.audiofeat(feature_set=feature_set)
+        feat.loc[fname] = aud.audiofeat(feature_set=feature_set)
         
     # save in vid_dir
-    wmp.to_csv(join(vid_dir,'mfeats_' + feature_set + '.csv'))
+    feat.to_csv(join(vid_dir,'mfeats_' + feature_set + '.csv'))
 
 if __name__ == '__main__':
     main()

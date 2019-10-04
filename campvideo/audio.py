@@ -11,9 +11,8 @@ from scipy.io.wavfile import read
 from scipy.signal import lfilter, spectrogram
 from tempfile import TemporaryDirectory
 
-# class for computing spectrogram. keeps track of useful quantities such as
-# window function, nfft, scaling, and sampling frequency
-class Spectrogram(object):
+# audio class for computing spectrogram and spectral feats. 
+class Audio(object):
     def __init__(self,path,normalize=True,fs=5000,nfft=1024,wfunc=np.hamming,
                   wlen=None,overlap=0.5,pre_emph=0.,scaling='density',mode='psd'):
         # set parameters
@@ -152,8 +151,8 @@ class Spectrogram(object):
     # sentiment analysis
     def audiofeat(self,feature_set='best'):  
         # check proper feature_set specification
-        if feature_set not in {'best','all','no_joint'}:
-            raise ValueError("Improper value for feature_set")
+        if feature_set not in {'best','all','no-joint'}:
+            raise ValueError("Invalid value for feature_set")
             
         # short term timbre features
         ssd = self._ssd()
@@ -167,7 +166,7 @@ class Spectrogram(object):
                            ))
                         
         # long-term modulation spectral features
-        if feature_set == ('all' or 'no_joint'):
+        if feature_set == ('all' or 'no-joint'):
             feat_lt = np.hstack((self._mfeat_spect(mfcc),
                                  self._mfeat_spect(osc),
                                  self._mfeat_spect(sfm_scm)
@@ -176,7 +175,7 @@ class Spectrogram(object):
             feat_lt = self._mfeat_spect(mfcc)
                             
         # joint frequency feature
-        if feature_set != 'no_joint':
+        if feature_set != 'no-joint':
             joint_feats = self._joint_feats()
         
             return np.hstack((feat_st,feat_lt,joint_feats))

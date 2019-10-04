@@ -6,7 +6,7 @@ import argparse
 import numpy as np
 import os
 
-from campvideo.audio import Spectrogram,get_dur,vid2wav
+from campvideo.audio import Audio,get_dur,vid2wav
 from collections import defaultdict
 from itertools import chain,combinations
 from os.path import join,basename,dirname,splitext
@@ -34,7 +34,7 @@ class FingerprintDB(object):
             # basename of file
             fname = splitext(basename(fpath))[0]
             # 0.3712s frames at 5kHz sampling rate, spaced by 11.6ms
-            fps,_ = Spectrogram(fpath,nfft=2048,wfunc=np.hanning,wlen=1856,
+            fps,_ = Audio(fpath,nfft=2048,wfunc=np.hanning,wlen=1856,
                                 overlap=31/32,scaling='spectrum',mode='magnitude'
                                ).fingerprint(reliability=False)
 
@@ -46,7 +46,7 @@ class FingerprintDB(object):
     # find matching file(s) in database for a given file
     def find_match(self,fpath,dur,threshold=0.3,find_all=False):
         # get fingerprint and reliability bits for unmatched file
-        fps,rels = Spectrogram(fpath,nfft=2048,wfunc=np.hanning,wlen=1856,
+        fps,rels = Audio(fpath,nfft=2048,wfunc=np.hanning,wlen=1856,
                                overlap=31/32,scaling='spectrum',mode='magnitude'
                               ).fingerprint()
 
@@ -162,16 +162,16 @@ def parse_arguments():
                         'one directory is given, the files are clustered. If '
                         'two directories are given, the first directory is '
                         'matched to the second directory',nargs='+')
-    parser.add_argument('-mf','--match_folders',action='store_true',default=False,
+    parser.add_argument('-mf','--match-folders',action='store_true',default=False,
                         help='Match bottom-most folders in first and second '
                         'directories')
-    parser.add_argument('-fa','--find_all',action='store_true',default=False,
+    parser.add_argument('-fa','--find-all',action='store_true',default=False,
                         help='Find all matches for each unmatched file')
-    parser.add_argument('-d','--dur',type=int,default=3,
+    parser.add_argument('-d','--duration',type=int,default=3,
                         help='Truncates unmatched files to middle section of '
                         'this duration when matching. If the duration is longer'
                         ' than the video, truncates to 50%')
-    parser.add_argument('-t','--thr',type=float,default=0.3,
+    parser.add_argument('-t','--threshold',type=float,default=0.3,
                         help='Threshold for determining a match between two '
                         'fingerprints. If the BER is below this value, a '
                         'match is declared')
@@ -184,7 +184,7 @@ def main():
     args = parse_arguments()
     
     dirs,match_folders,find_all = args.dirs,args.match_folders,args.find_all
-    dur,threshold = args.dur,args.thr
+    dur,threshold = args.duration,args.threshold
 
     # assert no more than 2 directories specified
     assert len(dirs) <= 2, "Too many directories specified"

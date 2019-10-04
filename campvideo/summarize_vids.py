@@ -18,17 +18,17 @@ from timeit import default_timer
 # command line argument parser
 def parse_arguments():
     parser = argparse.ArgumentParser()  
-    parser.add_argument('vid_dir',type=str,help='Directory of .mp4 videos')
+    parser.add_argument('vid_dir',type=str,help='Directory of videos in .mp4 or .wav format')
     parser.add_argument('-l1',default=1.5,type=float,
-                        help='Penalty for uniqueness')
+                        help='Penalty for uniqueness. Default value is 1.5')
     parser.add_argument('-l2',default=3.5,type=float,
-                        help='Penalty for summary length')
+                        help='Penalty for summary length. Default value is 3.5')
     parser.add_argument('-n',default=50,type=int,
-                        help='Number of iterations to run the optimization algorithm')
-    parser.add_argument('-dsf',default=1,type=int,
-                        help='Downsampling factor')
-    parser.add_argument('-wf',action='store_true',default=False,
-                        help='Flag for writing keyframes to .png')
+                        help='Number of iterations to run the optimization algorithm. Default value is 50')
+    parser.add_argument('-dsf','--downsampling-factor',default=1,type=int,
+                        help='Downsampling factor for thinning video before summarizing. Default value is 1')
+    parser.add_argument('-wf','--write-frames',action='store_true',default=False,
+                        help='Write keyframes to .png in output directory')
 
     return parser.parse_args()
 
@@ -39,8 +39,8 @@ def main():
     # video directory and video paths
     vid_dir = args.vid_dir
     l1,l2 = args.l1, args.l2
-    dsf = args.dsf
-    wf = args.wf
+    dsf = args.downsampling_factor
+    wf = args.write_frames
     
     # list of filepaths
     fpaths = [join(root,name) for root,dirs,files in os.walk(vid_dir)
@@ -67,7 +67,10 @@ def main():
             cmd = ffmpeg.input(fpath,
                        ).output(rfpath,vf='scale=320:240',loglevel=16
                        ).overwrite_output()
-            cmd.run()
+            try:
+                cmd.run(capture_stderr=True)
+            except ffmpeg.Error as e:
+                raise Exception(e.stderr.decode('utf-8'))
             
             # instantiate video stream object for original video
             v_orig = Video(fpath)
