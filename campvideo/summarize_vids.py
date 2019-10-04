@@ -25,7 +25,7 @@ def parse_arguments():
                         help='Penalty for summary length. Default value is 3.5')
     parser.add_argument('-n',default=50,type=int,
                         help='Number of iterations to run the optimization algorithm. Default value is 50')
-    parser.add_argument('-dsf','--downsampling-factor',default=1,type=int,
+    parser.add_argument('-dsf',default=1,type=int,
                         help='Downsampling factor for thinning video before summarizing. Default value is 1')
     parser.add_argument('-wf','--write-frames',action='store_true',default=False,
                         help='Write keyframes to .png in output directory')
@@ -39,7 +39,7 @@ def main():
     # video directory and video paths
     vid_dir = args.vid_dir
     l1,l2 = args.l1, args.l2
-    dsf = args.downsampling_factor
+    dsf = args.dsf
     wf = args.write_frames
     
     # list of filepaths
