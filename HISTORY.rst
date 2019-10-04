@@ -1,6 +1,14 @@
 History
 =======
 
+0.2.5 (10/5/2019)
+-----------------
+- audio_feats now returns if no videos found in input directory.
+
+0.2.4 (10/4/2019)
+-----------------
+- Bugfix in audio_feats script.
+
 0.2.3 (10/4/2019)
 -----------------
 - Renamed Spectrogram class to Audio.

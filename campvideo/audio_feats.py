@@ -34,6 +34,12 @@ def main():
     # get video paths
     fpaths = [join(root,fname) for root,_,fnames in os.walk(vid_dir)
               for fname in fnames if fname.endswith(('.mp4','.wav','.wmv'))]
+    
+    # return if no videos found or non-existent direct given
+    if len(fpaths) == 0:
+        print("No videos found in directory '%s'" % vid_dir)
+        return
+    
     # sort
     fpaths = sorted(fpaths,key=lambda s: basename(s))
     
@@ -57,7 +63,7 @@ def main():
         fdim = 412
         
     # feature data frame
-    feat = pd.DataFrame(index=matches.index,columns=list(range(fdim)),dtype=float)
+    feat = pd.DataFrame(columns=list(range(fdim)),dtype=float)
         
     # compute feature
     for fpath in fpaths_filtered:
