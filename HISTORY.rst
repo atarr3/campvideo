@@ -1,6 +1,10 @@
 History
 =======
 
+0.2.6 (10/9/2019
+-----------------
+- Changed version requirements for pandas package.
+
 0.2.5 (10/5/2019)
 -----------------
 - audio_feats now returns if no videos found in input directory.
