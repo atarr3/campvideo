@@ -10,7 +10,7 @@ import stat
 
 from campvideo.video import Video
 from cv2 import imwrite
-from os.path import normpath,join,relpath,splitext
+from os.path import normpath,join,relpath,splitext,basename
 from shutil import rmtree
 from tempfile import TemporaryDirectory
 from timeit import default_timer
@@ -96,7 +96,8 @@ def main():
                         fn.write('{0},'.format(kf_ind[i]))
                         # save keyframe
                         if wf:
-                            fname = join(out_dir,'frame_{0:04d}.png'.format(kf_ind[i]))
+                            name = splitext(basename(fpath))[0]
+                            fname = join(out_dir,name+'_{0:04d}.png'.format(kf_ind[i]))
                             imwrite(fname,kf)
             
             # video summarized

@@ -1,7 +1,11 @@
 History
 =======
 
-0.2.6 (10/9/2019
+0.2.7 (10/12/2019)
+-----------------
+- Changed summarize_vids filenames for keyframes.
+
+0.2.6 (10/9/2019)
 -----------------
 - Changed version requirements for pandas package.
 
