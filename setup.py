@@ -9,7 +9,7 @@ setup(
     author_email='atarr3@gmail.com',
     url='https://github.com/atarr3/campvideo',
     packages=['campvideo'],
-	package_data={'campvideo' : ['data/*.pb']},
+	package_data={'campvideo' : ['models/*.pb']},
     entry_points={
         'console_scripts': [
             'audio_feats=campvideo.audio_feats:main',
