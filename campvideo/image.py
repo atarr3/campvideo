@@ -1,15 +1,14 @@
 import cv2
 import numpy as np
-import pandas as pd
+import pkg_resources
 
-from cv2 import imread,imwrite,polylines,imshow
+from bisect import bisect
+from cv2 import imread,polylines,imshow
 from google.cloud import vision
 from math import ceil
-from os.path import splitext,basename,join
-from shutil import copyfile
+from os.path import splitext,basename,exists
 
-imtext_path = r'E:\Users\Alex\OneDrive\Documents\Research\campvideo\U2D Documents\2019\imagetext_errors.csv'
-vid_dir = r'E:\Users\Alex\Desktop\ITH_Video'
+MODEL_PATH = pkg_resources.resource_filename('campvideo','models/frozen_east_text_detection.pb')
 
 # image class for text and face recognition
 class Image(object):
@@ -37,12 +36,32 @@ class Image(object):
         if flag: 
             return enc.tobytes()
         else: 
-            raise Exception('')
+            raise Exception('Unable to encode image')
     
     
     # function for detecting and recognizing image text using Google Cloud API    
-    def image_text(self,thr=0.035,plot_image=True):
+    def image_text(self,thr=0.035,count=25,plot_image=False):
+        """ Detect and recognize artificial or scene text in the image
+        
+        Args:
+            thr : float, optional       
+                Minimum relative height of detected bounded for text to be 
+                kept. Default value is 0.035 (3.5% of image height).
+            count : int, optional     
+                Maximum number of words to return. Keeps the `count` largest 
+                (by height) bounding boxes. Default value is 25.
+            plot_image : bool, optional
+                Flag for plotting image with detected text bounding boxes 
+                overlaid. Default value is False.
+        """
+        # checks of Google API has already been called for this image
         if not hasattr(self,'_texts'):
+            # checks if any text is in the image before GCP API call
+            if not self._has_text():
+                # function will return [] on subsequent callse
+                self._texts = []
+                return []
+                
             # convert image to byte string
             content = self.tobytes()
             
@@ -60,66 +79,76 @@ class Image(object):
         # plot image with bounding boxes
         if plot_image:
             copy = self.im.copy()
+            
         # output list of text
         texts = []
+        rel_heights = []
         for text in self._texts[1:]:
             vertices = np.array([(vertex.x, vertex.y)
                                  for vertex in text.bounding_poly.vertices],
-                                dtype=np.int32)
+                                dtype=np.int32) # polylines requires int32
+            # get rotated bb height (assumes rotation is less than 90 degrees)
             dx = vertices[0][0] - vertices[3][0]
             dy = vertices[0][1] - vertices[3][1]
             height = ceil(np.sqrt(dx ** 2 + dy ** 2))
             rel_height = height / self.resolution[0]
-            
-            if plot_image:
-                # bb size text
-                imtext = "%.4f" % rel_height
-                font = cv2.FONT_HERSHEY_COMPLEX_SMALL
-                thickness = 1
-                scale = 0.7
-                width = cv2.getTextSize(imtext,font,scale,thickness)[0][0]
-                mid_x = (vertices[0][0] + vertices[1][0]) // 2
-                org = (mid_x - width // 2,vertices[0][1]+15)
-            
+
+            # filter bb based on relative height and total bb count            
             if rel_height >= thr:
-                texts.append(text.description)
+                ins = bisect(rel_heights,rel_height)
+                rel_heights.insert(ins,rel_height)
+                desc = text.description
+                texts.insert(ins,desc)
                 if plot_image:
-                    color = (36,255,12)
-                    bb = polylines(copy,[vertices],True,color)
-                    cv2.putText(bb,imtext,org,font,scale,(128,0,128),thickness)
+                    bb = polylines(copy,[vertices],True,(36,255,12))
             else:
                 if plot_image:
-                    color = (0,0,255)
-                    if rel_height >= 0.025: 
-                        cv2.putText(bb,imtext,org,font,scale,(128,0,128),thickness)
-                    bb = polylines(copy,[vertices],True,color)
+                    bb = polylines(copy,[vertices],True,(0,0,255))
         
         if plot_image:        
-            imshow('f',bb)
+            imshow('image with bounding boxes',bb)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
-            out = join(r'E:\Users\Alex\Desktop\bbs',self.name+self.ext)
-            imwrite(out,bb)
         
-        return texts
+        # return `count` largest texts. note that this is sorted and does not 
+        # preserve the ordering of the text as it appears in the image
+        return texts[-count:]
+    
+    # function for checking if text is contained in the image using the EAST
+    # text detector from cv2. The purpose of this function is to avoid making
+    # API calls to the GCP when no text is present on the image. 
+    def _has_text(self,score_thr=0.5):
+        # resize image to nearest dimensions that are a multiple of 32
+        h,w = self.resolution
+        # resize dimensions, detection is somewhat sensitive to this
+        ar = w / h # aspect ratio
+        new_w = min(480,w) // 32 * 32
+        # nearest (in aspect ratio) height that is a multiple of 32
+        new_h = int(np.round(int(new_w/ar) / 32)) * 32
+        # make copy to preserve original image
+        copy = self.im.copy()
+        copy = cv2.resize(copy,(new_w,new_h))
         
-#data = pd.read_csv(imtext_path,index_col=0,usecols=[0,1,2])
-#
-#fpaths = [join(root,name) for root,dirs,files in os.walk(vid_dir)
-#                              for name in files 
-#                                  if name.endswith(('.mp4','.wmv'))
-#                                  and basename(splitext(name)[0]) in data.index]
-## copy files into single directory
-#os.mkdir(r'E:\Users\Alex\Desktop\imtext_vids')
-#for fpath in fpaths:
-#    copyfile(fpath,join(r'E:\Users\Alex\Desktop\imtext_vids',basename(fpath)))
-#        
-#imtext_dir = r'E:\Users\Alex\Desktop\imtext'
-#fpaths = [join(root,name) for root,dirs,files in os.walk(imtext_dir)
-#                                  for name in files 
-#                                      if name.endswith(('.png'))]
-#    
-#for fpath in fpaths:
-#    im = Image.fromfile(fpath)
-#    im.image_text(0.035)
+        # relevant layer names
+        layers = ["feature_fusion/Conv_7/Sigmoid"]
+        
+        # load neural net
+        if exists(MODEL_PATH):
+            net = cv2.dnn.readNet(MODEL_PATH)
+        else:
+            raise Exception('Model data not installed')
+            
+        # construct blob and compute network outputs at `layers`
+        blob = cv2.dnn.blobFromImage(copy,1.0,(new_w,new_h),
+                    (123.68,116.78,103.94),swapRB=True,crop=False)
+        net.setInput(blob)
+        scores = net.forward(layers)[0]
+        
+        # check if any bounding box scores exceed confidence threshold
+        return np.any(scores[0,0] > score_thr)
+        
+
+        
+        
+        
         
