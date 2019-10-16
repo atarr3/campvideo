@@ -89,16 +89,19 @@ def main():
             
             # save keyframes indices
             kf_file = join(out_dir,'keyframes.txt')
+            kf_out = []
             with open(kf_file,'w') as fn:
                 for i,kf in enumerate(v_orig.frames(kf_ind)):
                     # reject monochramatic frames (determined by intensity variance)
                     if np.average(kf,axis=2,weights=[0.114,0.587,0.299]).std() >= 10:
-                        fn.write('{0},'.format(kf_ind[i]))
+                        kf_out.append(str(kf_ind[i]))
                         # save keyframe
                         if wf:
                             name = splitext(basename(fpath))[0]
                             fname = join(out_dir,name+'_{0:04d}.png'.format(kf_ind[i]))
                             imwrite(fname,kf)
+                # write frames to `keyframes.txt`
+                fn.write(','.join(kf_out))
             
             # video summarized
             f = default_timer() - s
