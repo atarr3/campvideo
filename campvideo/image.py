@@ -136,7 +136,9 @@ class Image(object):
         if exists(MODEL_PATH):
             net = cv2.dnn.readNet(MODEL_PATH)
         else:
-            raise Exception('Model data not installed')
+            raise Exception('Model data not installed. Please install the '
+                            'models with the following command:\n '
+                            'download_models')
             
         # construct blob and compute network outputs at `layers`
         blob = cv2.dnn.blobFromImage(copy,1.0,(new_w,new_h),
