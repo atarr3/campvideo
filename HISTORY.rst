@@ -5,7 +5,7 @@ History
 ------------------
 - Image module added with image text detection.
 - imtext script added
-- Machine learning models now included with package
+- download_models script added
 
 0.2.7 (10/12/2019)
 ------------------
