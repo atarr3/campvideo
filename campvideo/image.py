@@ -1,14 +1,14 @@
 import cv2
 import numpy as np
-import pkg_resources
 
 from bisect import bisect
 from cv2 import imread,polylines,imshow
 from google.cloud import vision
 from math import ceil
 from os.path import splitext,basename,exists
+from pkg_resources import resource_filename
 
-MODEL_PATH = pkg_resources.resource_filename('campvideo','models/frozen_east_text_detection.pb')
+MODEL_PATH = resource_filename('campvideo','models/frozen_east_text_detection.pb')
 
 # image class for text and face recognition
 class Image(object):
@@ -28,6 +28,12 @@ class Image(object):
         name,ext = splitext(im_path)
         
         return cls(im,name=basename(name),ext=ext)
+    
+    # show image
+    def show(self):
+        cv2.imshow('image',self.im)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
     
     # function for converting to byte string
     def tobytes(self):
@@ -81,9 +87,10 @@ class Image(object):
             copy = self.im.copy()
             
         # output list of text
-        texts = []
+        texts = self._texts[1:] # first entry is all text in the image
         rel_heights = []
-        for text in self._texts[1:]:
+        inds = []
+        for ind,text in enumerate(texts):
             vertices = np.array([(vertex.x, vertex.y)
                                  for vertex in text.bounding_poly.vertices],
                                 dtype=np.int32) # polylines requires int32
@@ -95,10 +102,11 @@ class Image(object):
 
             # filter bb based on relative height and total bb count            
             if rel_height >= thr:
+                # insertion index that sorts based on asecending height
                 ins = bisect(rel_heights,rel_height)
+                # sorted heights and corresponding index in self._texts[1:]
                 rel_heights.insert(ins,rel_height)
-                desc = text.description
-                texts.insert(ins,desc)
+                inds.insert(ins,ind)
                 if plot_image:
                     bb = polylines(copy,[vertices],True,(36,255,12))
             else:
@@ -112,7 +120,7 @@ class Image(object):
         
         # return `count` largest texts. note that this is sorted and does not 
         # preserve the ordering of the text as it appears in the image
-        return texts[-count:]
+        return [texts[i].description for i in sorted(inds[-count:])]
     
     # function for checking if text is contained in the image using the EAST
     # text detector from cv2. The purpose of this function is to avoid making
@@ -148,9 +156,4 @@ class Image(object):
         
         # check if any bounding box scores exceed confidence threshold
         return np.any(scores[0,0] > score_thr)
-        
-
-        
-        
-        
-        
+    

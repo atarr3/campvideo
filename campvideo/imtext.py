@@ -5,8 +5,8 @@ from __future__ import print_function
 import argparse
 import os
 
-from campvideo.image import Image
-from campvideo.video import Video
+from campvideo import Image
+from campvideo import Video
 from os.path import join,splitext,basename,dirname
 
 # command line argument parser
@@ -33,14 +33,20 @@ def main():
     # there must be a corresponding keyframe file for each video file. matches
     # are dictated by the parent folder of `keyframes.txt`, which should be the
     # name of the video file
-    fpaths_summ = sorted(fpaths_summ,key = lambda s: basename(dirname(s)))
-    fpaths_vid  = sorted(fpaths_vid,key = lambda s: splitext(basename(s))[0])
+    fpaths_summ = sorted(fpaths_summ,
+                         key = lambda s: basename(dirname(s)).lower())
+    fpaths_vid  = sorted(fpaths_vid,
+                         key = lambda s: splitext(basename(s))[0].lower())
     
     # iterate through videos
-    for fpath_summ, fpath_vid in zip(fpaths_summ,fpaths_vid):
+    n = len(fpaths_vid)
+    for i,(fpath_summ, fpath_vid) in enumerate(zip(fpaths_summ,fpaths_vid)):
+        # progress
+        print('Processing video %d of %d... ' % (i+1,n),end='',flush=True)
         # check that video and summary correspond to one another
-        assert basename(dirname(fpath_summ)) == splitext(basename(fpath_vid))[0],\
-        ("Summary and video structure not equivalent between directories")
+        if basename(dirname(fpath_summ)) != splitext(basename(fpath_vid))[0]:
+            print()
+            raise Exception("Summary and video structure not equivalent between directories")
         
         # get keyframe indices as list
         with open(fpath_summ,'r') as fh:
@@ -54,9 +60,12 @@ def main():
         texts = [im.image_text() for im in ims]
         
         # write to same directory with summary is
-        with open(join(dirname(fpath_summ),'image_text.txt'),'w'):
+        with open(join(dirname(fpath_summ),'image_text.txt'),'wb') as fh:
             # tab-delimited words, newline for each keyframe
-            '\n'.join(['\t'.join(text) for text in texts])
+            fh.write('\n'.join(['\t'.join(text) for text in texts]).encode('utf-8'))
+        
+        print('Done!')
+            
             
 if __name__ == '__main__':
     main()

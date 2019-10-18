@@ -1,6 +1,31 @@
 History
 =======
 
+0.3.8 (10/18/2019)
+------------------
+- Output to stdout in imtext fixed.
+
+0.3.7 (10/18/2019)
+------------------
+- Fixed UTF-8 encoding issue in imtext.
+
+0.3.6 (10/18/2019)
+------------------
+- Fixed TypeError issue in writing results.
+
+0.3.5 (10/18/2019)
+------------------
+- Fixed indexing issue in Image.image_text().
+
+0.3.4 (10/18/2019)
+------------------
+- Fixed issues with imtext script.
+- Image.image_text() now returns image text in the order it appears in the text. 
+
+0.3.3 (10/18/2019)
+------------------
+- Better imports in __init__.py.
+
 0.3.2 (10/18/2019)
 ------------------
 - Fixed printing in download_models.
