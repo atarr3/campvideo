@@ -73,7 +73,8 @@ class Model:
         # MB/s
         speed = progress / (1024 ** 2 * dur)
         percent = min(int(count * block_size * 100 / total_size), 100)
-        print('\rDownloading model `%s`... %d%%, %.2f MB/s' % 
+		# \x1b[2K clears current line, \r resets cursor to start
+        print('\x1b[2KDownloading model `%s`... %d%%, %.2f MB/s\r' % 
               (self.name,percent,speed),end='',flush=True)
         if percent == 100: print() # adds newline
 
