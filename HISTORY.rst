@@ -1,11 +1,20 @@
 History
 =======
 
+0.3.2 (10/18/2019)
+------------------
+- Fixed printing in download_models.
+- Added python version requirements and updated package dependencies for image module.
+
+0.3.1 (10/17/2019)
+------------------
+- Minor bugfix in setup.py.
+
 0.3.0 (10/16/2019)
 ------------------
 - Image module added with image text detection.
-- imtext script added
-- download_models script added
+- imtext script added.
+- download_models script added.
 
 0.2.7 (10/12/2019)
 ------------------
