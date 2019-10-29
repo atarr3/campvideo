@@ -7,19 +7,15 @@ import numpy as np
 import os
 
 from functools import partial
-from queue import Queue
 from sklearn.metrics import pairwise_distances
 from sklearn.metrics.pairwise import cosine_similarity
-from threading import Thread
 
 class Video:
-    def __init__(self,fpath,queue_size=512):
+    def __init__(self,fpath):
         # check that file exists
         if not os.path.exists(fpath):
             raise IOError("file '{0}' does not exist".format(fpath))
             
-        # create frame buffer
-        self.__buffer = Queue(maxsize=queue_size)
         # create VideoCapture object
         self.__stream = cv2.VideoCapture(fpath)
         
@@ -34,29 +30,6 @@ class Video:
         
         # close stream
         self.__release()
-                           
-    # function for filling buffer with specified frames
-    def __fill(self,inds=None):
-        # open up stream as cv2.VideoCapture object
-        self.__stream = cv2.VideoCapture(self.file)
-        # empty buffer
-        self.__buffer.queue.clear()
-        
-        # fill buffer
-        if inds is None: # grab all frames
-            while True:
-                flag,frame = self.__stream.read()       
-                if not flag: self.__release(); return
-                self.__buffer.put(frame)
-        else:
-            for ind in inds:
-                # set stream to current frame
-                self.__stream.set(1,ind)
-                __,frame = self.__stream.read()
-                self.__buffer.put(frame)
-                
-        # close stream
-        self.__release()
     
     # close VideoCapture stream        
     def __release(self):
@@ -67,13 +40,17 @@ class Video:
         """Returns the requested frames as an N x H x W x C uint8 numpy array.
         
         Args:
-            frame_ind:  The indices of the frames to be retrieved
-            size:       Two-element tuple specifying the desired size of the 
-                        frames with width as the first element and height as 
-                        the second element. Defaults to the native resolution.
-            colorspace: String specifying the colorspace representation of the 
-                        frames. Valid options include 'RGB','BGR','YUV','HSV',
-                        'Lab', and 'gray'. Defaults to 'BGR'. 
+            frame_ind : int array, optional 
+                The indices of the frames to be retrieved. Default value is all
+                frames.
+            size : int tuple, optional       
+                Two-element tuple specifying the desired size of the frames 
+                with width as the first element and height as the second 
+                element. Default value is the native resolution.
+            colorspace : str, optional
+                String specifying the colorspace representation of the frames. 
+                Valid options include 'RGB','BGR','YUV','HSV','Lab', and 
+                'gray'. Default value is 'BGR'. 
         """
         # color conversion dictionary
         colors = {'RGB' : cv2.COLOR_BGR2RGB,'BGR' : None,'YUV' : cv2.COLOR_BGR2YUV,
@@ -101,20 +78,23 @@ class Video:
                                   "function details for a list of valid colorspaces"
                                   .format(colorspace))
         
-        # start thread for filling frame buffer
-        t = Thread(target=self.__fill,args=(frame_inds,),daemon=True)
-        t.start()
-        
         # number of frames and layers
         n = np.size(frame_inds)
         if colorspace == 'gray':
             frames = np.empty((n,size[1],size[0]),dtype='uint8')
         else:
             frames = np.empty((n,size[1],size[0],3),dtype='uint8')
-            
+        
+        # open video capture object
+        self.__stream = cv2.VideoCapture(self.file)
+        
         # read frames from queue
-        for i in range(n):
-            cf = self.__buffer.get()
+        for i in frame_inds:
+            self.__stream.set(1,i)
+            flag,cf = self.__stream.read()
+            # error handling
+            if not flag:
+                raise Exception('Error decoding frame %d' % i+1)
             # resize
             if (cf.shape[1],cf.shape[0]) != size:
                 cf = cv2.resize(cf,size)
@@ -124,8 +104,8 @@ class Video:
             
             frames[i] = cf
             
-        # close thread
-        t.join()
+        # close stream
+        self.__release()
             
         return frames
     
@@ -135,15 +115,13 @@ class Video:
            video. Returns a tuple of feature arrays (labhist, hog)
         
         Args:
-            dsf: Downsampling factor. The features are computed for frames 
-                 np.arange(0,self.frame_count,dsf). Default is 1.
+            dsf : int, optional
+                Downsampling factor. The features are computed for frames 
+                np.arange(0,self.frame_count,dsf). Default value is 1.
         """
         
         # frame indices
         frame_inds = np.arange(0,self.frame_count,dsf)
-        # start filling buffer with frames on separate thread
-        t = Thread(target=self.__fill,args=(frame_inds,),daemon=True)
-        t.start()
         
         # feature class instantiation
         hog = HOG(self.resolution)
@@ -155,26 +133,38 @@ class Video:
         labhist_feat = np.zeros((n,labhist.dimension),dtype=np.float32)
         hog_feat = np.zeros((n,hog.dimension),dtype=float)
         
-        for i in range(n):
-            cf = self.__buffer.get()
+        self.__stream = cv2.VideoCapture(self.file)
+        for i in frame_inds:
+            self.__stream.set(1,i)
+            flag,cf = self.__stream.read()
+            # error handling
+            if not flag:
+                raise Exception('Error decoding frame %d' % i+1)
             labhist_feat[i] = labhist.compute(cf)
             hog_feat[i] = hog.compute(cf)
-    
-        self.__buffer.all_tasks_done
+
+        # close stream
+        self.__release()            
         
         return (labhist_feat, hog_feat)
     
     # function for adaptively selecting keyframes via submodular optimization
-    def kf_adaptive(self,l1=1.5,l2=3.5,niter=50,dsf=1):
-        """Generates anarray of keyframes using an adaptive keyframe selection
+    def kf_adaptive(self,l1=1.5,l2=3.5,niter=25,dsf=1):
+        """Generates an array of keyframes using an adaptive keyframe selection
            algorithm. 
         
         Args:
-            l1:  Penalty for uniqueness. Default is 1
-            l2:  Penalty for summary length. Default is 5
-            dsf: Downsampling factor for thinning frames before running the
-                 algorithm. Increasing this will improve runtime. Default is 1
-                 (no downsampling)
+            l1 : float, optional
+                Penalty for uniqueness. Default value is 1.
+            l2 : float, optional
+                Penalty for summary length. Default value is 5
+            niter : int, optional
+                Number of iteration for optimization algorithm. Default value 
+                is 50.
+            dsf : int, optional   
+                Downsampling factor for thinning frames before running the
+                algorithm. Increasing this will improve runtime. Default is 
+                value is 1 (no downsampling)
         """
         # prevents misuse
         dsf = int(dsf)
