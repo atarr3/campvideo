@@ -97,3 +97,6 @@ def main():
     for model in MODELS:
         model.get()
     print("All models downloaded!")
+    
+if __name__ == '__main__':
+    main()

@@ -65,7 +65,6 @@ def main():
             fh.write('\n'.join(['\t'.join(text) for text in texts]).encode('utf-8'))
         
         print('Done!')
-            
-            
+                  
 if __name__ == '__main__':
     main()
