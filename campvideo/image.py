@@ -1,4 +1,5 @@
 import cv2
+import face_recognition
 import numpy as np
 
 from bisect import bisect
@@ -43,7 +44,10 @@ class Image(object):
             return enc.tobytes()
         else: 
             raise Exception('Unable to encode image')
-    
+            
+    # function for detecting and recognizing faces in an image
+    def image_faces(self):
+        pass
     
     # function for detecting and recognizing image text using Google Cloud API    
     def image_text(self,thr=0.035,count=25,plot_image=False):
