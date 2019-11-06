@@ -4,6 +4,7 @@ import numpy as np
 
 from bisect import bisect
 from cv2 import imread,polylines,imshow
+from google.api_core.exceptions import DeadlineExceeded
 from google.cloud import vision
 from math import ceil
 from os.path import splitext,basename,exists
@@ -82,7 +83,12 @@ class Image(object):
             image = vision.types.Image(content=content)
                 
             # detect text
-            response = client.text_detection(image=image)
+            try:
+                response = client.text_detection(image=image,timeout=10)
+            except DeadlineExceeded:
+                # timed out, try again
+                response = client.text_detection(image=image,timeout=10)
+                
             # store results for future use
             self._texts = response.text_annotations
         

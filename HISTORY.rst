@@ -1,6 +1,12 @@
 History
 =======
 
+0.3.9 (11/06/2019)
+------------------
+- Faster video summarization.
+- Fixed issue with feature selection in audio_feats.
+- Exception handling for operation timeouts in Vision API calls.
+
 0.3.8 (10/18/2019)
 ------------------
 - Output to stdout in imtext fixed.
