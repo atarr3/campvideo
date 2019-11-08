@@ -57,14 +57,15 @@ def main():
         ims = [Image(frame) for frame in vid.frames(kf_ind)]
         
         # get image text for each image
-		try:
-			texts = [im.image_text() for im in ims]
-		except as e:
-			# error logging in summ_dir
-			with open(join(summ_dir,'log.txt'),'a') as fh:
-				msg = 'Failed on video `%s` with error: `%s`\n' % (fpath_vid,repr(e))
-				print(msg,file=fh)
-				continue
+        try:
+            texts = [im.image_text() for im in ims]
+        except Exception as e:
+            # error logging in summ_dir
+            with open(join(summ_dir,'log.txt'),'a') as fh:
+                msg = 'Failed on video `%s` with error: `%s`\n' % (fpath_vid,repr(e))
+                print(msg,file=fh)
+                print("Failed.")
+                continue
 			
         # write to same directory with summary is
         with open(join(dirname(fpath_summ),'image_text.txt'),'wb') as fh:

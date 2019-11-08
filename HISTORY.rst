@@ -1,6 +1,10 @@
 History
 =======
 
+0.3.10 (11/07/2019)
+-------------------
+- Fixed tab issue in imtext.
+
 0.3.9 (11/06/2019)
 ------------------
 - Faster video summarization.
