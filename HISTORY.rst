@@ -1,6 +1,10 @@
 History
 =======
 
+0.3.11 (11/09/2019)
+-------------------
+- Fixed indexing issue in video module.
+
 0.3.10 (11/07/2019)
 -------------------
 - Fixed tab issue in imtext.
