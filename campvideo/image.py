@@ -12,6 +12,14 @@ from pkg_resources import resource_filename
 
 MODEL_PATH = resource_filename('campvideo','models/frozen_east_text_detection.pb')
 
+# load neural net for text bounding box detection
+if exists(MODEL_PATH):
+    text_net = cv2.dnn.readNet(MODEL_PATH)
+else:
+    raise Exception('Model data not installed. Please install the models by '
+                    'typing the following command into the command line:\n\n'
+                    'download_models')
+
 # image class for text and face recognition
 class Image(object):
     def __init__(self,im,name=None,ext=None):
@@ -51,14 +59,14 @@ class Image(object):
         pass
     
     # function for detecting and recognizing image text using Google Cloud API    
-    def image_text(self,thr=0.035,count=25,plot_image=False):
+    def image_text(self,bb_thr=0.035,bb_count=25,plot_image=False):
         """ Detect and recognize artificial or scene text in the image
         
         Args:
-            thr : float, optional       
+            bb_thr : float, optional       
                 Minimum relative height of detected bounded for text to be 
                 kept. Default value is 0.035 (3.5% of image height).
-            count : int, optional     
+            bb_count : int, optional     
                 Maximum number of words to return. Keeps the `count` largest 
                 (by height) bounding boxes. Default value is 25.
             plot_image : bool, optional
@@ -111,7 +119,7 @@ class Image(object):
             rel_height = height / self.resolution[0]
 
             # filter bb based on relative height and total bb count            
-            if rel_height >= thr:
+            if rel_height >= bb_thr:
                 # insertion index that sorts based on asecending height
                 ins = bisect(rel_heights,rel_height)
                 # sorted heights and corresponding index in self._texts[1:]
@@ -128,9 +136,9 @@ class Image(object):
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         
-        # return `count` largest texts. note that this is sorted and does not 
-        # preserve the ordering of the text as it appears in the image
-        return [texts[i].description for i in sorted(inds[-count:])]
+        # return `count` largest texts, in order as they were detected in the
+        # image
+        return [texts[i].description for i in sorted(inds[-bb_count:])]
     
     # function for checking if text is contained in the image using the EAST
     # text detector from cv2. The purpose of this function is to avoid making
@@ -149,21 +157,29 @@ class Image(object):
         
         # relevant layer names
         layers = ["feature_fusion/Conv_7/Sigmoid"]
-        
-        # load neural net
-        if exists(MODEL_PATH):
-            net = cv2.dnn.readNet(MODEL_PATH)
-        else:
-            raise Exception('Model data not installed. Please install the '
-                            'models with the following command:\n '
-                            'download_models')
             
         # construct blob and compute network outputs at `layers`
         blob = cv2.dnn.blobFromImage(copy,1.0,(new_w,new_h),
                     (123.68,116.78,103.94),swapRB=True,crop=False)
-        net.setInput(blob)
-        scores = net.forward(layers)[0]
+        text_net.setInput(blob)
+        scores = text_net.forward(layers)[0]
         
         # check if any bounding box scores exceed confidence threshold
         return np.any(scores[0,0] > score_thr)
+    
+# function for performing image text detection over a batch of images
+def batch_image_text(ims,bb_thr=0.035,count=25):
+    """ Detect and recognize artificial or scene text in an array of images
+    
+    Args:
+        ims : list
+            List of 
+        bb_thr : float, optional       
+            Minimum relative height of detected bounded for text to be 
+            kept. Default value is 0.035 (3.5% of image height).
+        bb_count : int, optional     
+            Maximum number of words to return. Keeps the `count` largest 
+            (by height) bounding boxes. Default value is 25.
+    """
+    pass
     

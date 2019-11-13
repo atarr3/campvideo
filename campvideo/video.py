@@ -53,7 +53,7 @@ class Video:
                 'gray'. Default value is 'BGR'.
         """
         # color conversion dictionary
-        colors = {'RGB' : cv2.COLOR_BGR2RGB,'BGR' : None,'YUV' : cv2.COLOR_BGR2YUV,
+        colors = {'RGB' : cv2.COLOR_BGR2RGB,'YUV' : cv2.COLOR_BGR2YUV,
                   'HSV' : cv2.COLOR_BGR2HSV,'Lab' : cv2.COLOR_BGR2Lab,
                   'gray' : cv2.COLOR_BGR2GRAY}
 
@@ -73,7 +73,7 @@ class Video:
                                  "indices from 0 to {0}"
                                   .format(self.frame_count-1))
             # check that specified colorspace is correct
-            if colorspace not in colors:
+            if colorspace != 'BGR' and colorspace not in colors:
                 raise ValueError("{0} is not a valid colorspace. Please see "
                                   "function details for a list of valid colorspaces"
                                   .format(colorspace))
@@ -168,7 +168,7 @@ class Video:
                 Penalty for summary length. Default value is 5
             niter : int, optional
                 Number of iteration for optimization algorithm. Default value
-                is 50.
+                is 25.
             dsf : int, optional
                 Downsampling factor for thinning frames before running the
                 algorithm. Increasing this will improve runtime. Default is
