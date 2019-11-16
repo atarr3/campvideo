@@ -1,12 +1,37 @@
 History
 =======
 
+0.3.18 (11/16/2019)
+-------------------
+-- Added exceptions for missing directories.
+
+0.3.17 (11/16/2019)
+-------------------
+-- log.txt deleted at the beginning of imtext script call.
+-- Better message formatting for standard output printing.
+
+0.3.16 (11/16/2019)
+-------------------
+-- Corrected print issue in imtext.
+
+0.3.15 (11/16/2019)
+-------------------
+-- More debugging.
+
+0.3.14 (11/16/2019)
+-------------------
+-- Import fixes.
+
+0.3.13 (11/16/2019)
+-------------------
+-- Updated imtext.
+
 0.3.12 (11/16/2019)
 -------------------
 - Faster image text detection with batch processing.
 - Fixed repeated model loading issue.
 - Updated docstring for Keyframes class and methods.
-- Compativility update with imtext and Keyframes class.
+- Compatibility update with imtext and Keyframes class.
 
 0.3.11 (11/09/2019)
 -------------------

@@ -1,2 +1,3 @@
-from campvideo.image import Image
-from campvideo.video import Video
+# Image module relies on Video module, so Video must be loaded first
+from .video import Video
+from .image import Keyframes
