@@ -1,6 +1,13 @@
 History
 =======
 
+0.3.12 (11/16/2019)
+-------------------
+- Faster image text detection with batch processing.
+- Fixed repeated model loading issue.
+- Updated docstring for Keyframes class and methods.
+- Compativility update with imtext and Keyframes class.
+
 0.3.11 (11/09/2019)
 -------------------
 - Fixed indexing issue in video module.
