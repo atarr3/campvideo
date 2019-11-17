@@ -90,11 +90,14 @@ class Video:
 
         # read frames from queue
         for i,frame_ind in enumerate(frame_inds):
-            self.__stream.set(1,frame_ind)
-            flag,cf = self.__stream.read()
+            ret = self.__stream.set(1,frame_ind)
             # error handling
+            if not ret:
+                raise Exception('Error setting stream to frame %d' % frame_ind+1)
+            flag,cf = self.__stream.read()
             if not flag:
                 raise Exception('Error decoding frame %d' % frame_ind+1)
+                
             # resize
             if (cf.shape[1],cf.shape[0]) != size:
                 cf = cv2.resize(cf,size)

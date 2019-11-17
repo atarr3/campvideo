@@ -240,12 +240,13 @@ class Keyframes(object):
     # function for checking if text is contained in the image using the EAST
     # text detector from cv2. The purpose of this function is to avoid making
     # API calls to the GCP when no text is present in the image.
-    def _has_text(self,im,score_thr=0.5):
+    def _has_text(self,im,ar=16/9,score_thr=0.5):
         # resize image to nearest dimensions that are a multiple of 32
         h,w = self.resolution
         # resize dimensions, detection is somewhat sensitive to this
-        ar = w / h # aspect ratio
-        new_w = min(480,w) // 32 * 32
+        # seems like this must be constant across calls unless the model is 
+        # reloaded for each image... will have to look into this
+        new_w = 480
         # nearest (in aspect ratio) height that is a multiple of 32
         new_h = int(np.round(int(new_w/ar) / 32)) * 32
         # make copy to preserve original image

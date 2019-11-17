@@ -81,7 +81,7 @@ def main():
                 texts = [item for item in texts if item != []]
             except Exception as e:
                 # error logging in summ_dir
-                msg = 'Failed on video `%s` with error: `%s`' % (fpath_vid,repr(e))
+                msg = 'Failed on video `%s` with error: `%s`' % (fpath_vid,str(e))
                 print(msg,file=fh)
                 print("Failed.")
                 continue

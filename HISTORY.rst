@@ -1,6 +1,10 @@
 History
 =======
 
+0.3.19 (11/16/2019)
+-------------------
+-- Fixed inconsistent shape error when running text detection on different-sized images.
+
 0.3.18 (11/16/2019)
 -------------------
 -- Added exceptions for missing directories.
