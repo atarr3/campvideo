@@ -1,6 +1,11 @@
 History
 =======
 
+0.3.20 (11/16/2019)
+-------------------
+-- Terminating imtext when trying to read frames now skips to the next video.
+-- If keyframes.txt already exists, imtext skips to the next video.
+
 0.3.19 (11/16/2019)
 -------------------
 -- Fixed inconsistent shape error when running text detection on different-sized images.

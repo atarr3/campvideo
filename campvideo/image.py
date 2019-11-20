@@ -1,5 +1,5 @@
 import cv2
-#import face_recognition
+import face_recognition
 import numpy as np
 import os
 import warnings
@@ -38,6 +38,11 @@ class Keyframes(object):
                 An array of the corresponding names for each keyframe in `ims`.
                 Generally, these names usually refer to the index of the frame
                 in the original video.
+                
+        Returns:
+            out : Keyframes
+                A Keyframes object containing the images and corresponding 
+                names, if specified.
         """
         # list of BGR images
         self.ims = list(ims)
@@ -57,6 +62,11 @@ class Keyframes(object):
                 The path to the directory containing the keyframes, saved as 
                 images. The `fromdir` method will attempt to read in all files
                 saved in .bmp, .jpg, .jpeg, .png, .tiff, .tif format.
+                
+        Returns:
+            out : Keyframes
+                A Keyframes object containing the images and corresponding 
+                names as listed in the image directory.
         """
         ims = []
         names = []
@@ -83,6 +93,11 @@ class Keyframes(object):
                 The path to the video file.
             kf_ind : array_like
                 An array of keyframe indices.
+                
+        Returns:
+            out : Keyframes
+                A Keyframes object containing the images and corresponding 
+                names determined by the filename and frame index.
         """
         vid = Video(vid_path)
         ims = vid.frames(frame_inds=kf_ind)
@@ -115,6 +130,11 @@ class Keyframes(object):
         Args:
             im : numpy array
                 BGR numpy array representing the image to be byte-encoded.
+                
+        Returns:
+            enc : str
+                The byte-encoded string representing the image in .png-encoded
+                format
         """
         flag,enc = cv2.imencode(self.ext,im)
         # catch errors with encoding
@@ -124,19 +144,28 @@ class Keyframes(object):
             raise Exception('Unable to encode image')
 
     # function for detecting and recognizing image text using Google Cloud API
-    def image_text(self,bb_thr=0.035,bb_count=25,plot_images=False):
-        """ Detect and recognize artificial or scene text in the image
+    def keyframes_text(self,bb_thr=0.035,bb_count=25,plot_images=False):
+        """ Detect and recognize artificial or scene text in the set of 
+        keyframes
 
         Args:
             bb_thr : float, optional
                 Minimum relative height of detected bounded for text to be
-                kept. Default value is 0.035 (3.5% of image height).
+                kept. The default value is 0.035 (3.5% of image height).
             bb_count : int, optional
-                Maximum number of words to return. Keeps the `count` largest
-                (by height) bounding boxes. Default value is 25.
+                Maximum number of words to return for each frame. Keeps the 
+                `bb_count` largest (by height) bounding boxes. The default 
+                value is 25.
             plot_images : bool, optional
                 Flag for plotting images with detected text bounding boxes
-                overlaid. Default value is False.
+                overlaid. The default value is False.
+                
+        Returns:
+            out : list
+                A list of the detected text in the set of keyframes. Each
+                element of `out` corresponds to each keyframe with detected 
+                text and is a list of at most `bb_count` largest (by height) 
+                words that have a relative height of at least `bb_thr`.         
         """
         # checks of Google API has already been called for keyframes
         if not hasattr(self,'_texts'):
@@ -178,7 +207,7 @@ class Keyframes(object):
             text_ims = [im.copy() for flag,im in zip(self._keep,self.ims) if flag]
 
             # filtered list of text
-            res = []
+            out = []
             for frame,all_texts in enumerate(self._texts):
                 texts = all_texts[1:] # first entry is all text in the image
                 rel_heights = []
@@ -211,10 +240,10 @@ class Keyframes(object):
                 cv2.destroyAllWindows()
         
                 # keep `count` largest texts, in order as they appear in the image
-                res.append([texts[i].description for i in sorted(inds[-bb_count:])])
+                out.append([texts[i].description for i in sorted(inds[-bb_count:])])
         # no plotting
         else:
-            res = []
+            out = []
             for frame,all_texts in enumerate(self._texts):
                 texts = all_texts[1:] # first entry is all text in the image
                 rel_heights = []
@@ -233,9 +262,64 @@ class Keyframes(object):
                         rel_heights.insert(ins,rel_height)
                         inds.insert(ins,ind)
         
-                res.append([texts[i].description for i in sorted(inds[-bb_count:])])
+                out.append([texts[i].description for i in sorted(inds[-bb_count:])])
             
-        return res
+        return out
+    
+    # function for detecting and recognizing faces in keyframes
+    def keyframes_faces(self,identity,dist_thr=0.6,return_dists=False):
+        """ Detect and recognize faces in the set of keyframes that match the 
+        face provided in the given input
+        
+        Args:
+            identity : str or numpy array
+                If a string, path to the image containing the face of the 
+                person to be recognized in the keyframes. If an array, the
+                face encoding representing the identity.
+                
+                When specifying an image, the image should contain only the 
+                face of the person to be recognized, and the face should be 
+                front-facing and clear from any obstructions (e.g. hair, hats, 
+                sunglasses, etc.).
+            dist_thr : float, optional
+                Minimum distance to `identity` face encoding to declare a match
+                between the faces. The default value is 0.6.
+            return_dists : bool, optional
+                Boolean flag for specifying whether or not to return the 
+                distances between all detected faces in the keyframes and the
+                given identity face. The default value is False.
+                
+        Returns:
+            dists : numpy array
+                An array of distances between the input face encoding and the 
+                encodings corresponding to faces detected in the keyframes.
+                Only returned when `return_dists` is True, otherwise None is
+                returned.
+            out : bool
+                A Boolean flag specifying whether or not the face in the input
+                image matches any of the faces detected in the keyframes.
+        """
+        # read in image and get encoding
+        if type(identity) == str:
+            known_im = face_recognition.load_image_file(identity)
+            known_enc = face_recognition.face_encodings(known_im)[0]
+        # otherwise check if identity is valid encoding
+        else:
+            assert len(identity) == 128, 'invalid encoding passed'
+            known_enc = identity
+            
+        # calculate all encodings
+        unkn_encs = [enc for im in self.ims
+                             for enc in face_recognition.face_encodings(im)]
+        
+        dists = face_recognition.face_distance(unkn_encs,known_enc)
+        
+        # return distances if specified, else return if any encoding is below
+        # specified threshold
+        if return_dists:
+            return (dists, np.any(dists <= dist_thr))
+        else:
+            return (None, np.any(dists <= dist_thr))
 
     # function for checking if text is contained in the image using the EAST
     # text detector from cv2. The purpose of this function is to avoid making

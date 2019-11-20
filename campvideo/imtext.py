@@ -55,6 +55,12 @@ def main():
     for i,(fpath_summ, fpath_vid) in enumerate(zip(fpaths_summ,fpaths_vid)):
         # progress
         print('Processing video %4d of %4d... ' % (i+1,n),end='',flush=True)
+        
+        # skip to next video if already processed
+        if os.path.exists(join(dirname(fpath_summ),'image_text.txt')):
+            print('Already processed')
+            continue
+        
         # check that video and summary correspond to one another
         if basename(dirname(fpath_summ)) != splitext(basename(fpath_vid))[0]:
             print()
@@ -70,13 +76,24 @@ def main():
             print('Processing video %d of %d... ' % (i+1,n),file=fh)	          
 			# get frames from video and create Keyframes object
             print('\tReading keyframes... ',file=fh,end='',flush=True)
-            kf = Keyframes.fromvid(fpath_vid,kf_ind)
+            try:
+                kf = Keyframes.fromvid(fpath_vid,kf_ind)
+            except KeyboardInterrupt:
+                msg = 'Process terminated on video `%s`' % fpath_vid
+                print(msg,file=fh)
+                print('Failed')
+                continue
+            except Exception as e:
+                msg = 'Failed on video `%s` with error: `%s`' % (fpath_vid,str(e))
+                print(msg,file=fh)
+                print("Failed.")
+                continue
             print('Done!',file=fh)
 			
 			# get image text for each image
             print('\tDetecting text... ',file=fh,end='',flush=True)
             try:
-                texts = kf.image_text()
+                texts = kf.keyframes_text()
                 # remove empty lists
                 texts = [item for item in texts if item != []]
             except Exception as e:

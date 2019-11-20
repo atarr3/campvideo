@@ -7,6 +7,7 @@ import numpy as np
 import os
 
 from functools import partial
+from google.cloud import videointelligence as vi
 from sklearn.metrics import pairwise_distances
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -14,7 +15,7 @@ class Video:
     def __init__(self,fpath):
         # check that file exists
         if not os.path.exists(fpath):
-            raise IOError("file '{0}' does not exist".format(fpath))
+            raise IOError("file `%s` does not exist" % fpath)
 
         # create VideoCapture object
         self.__stream = cv2.VideoCapture(fpath)
@@ -70,13 +71,12 @@ class Video:
         if frame_inds is not None:
             if np.max(frame_inds) >= self.frame_count or np.min(frame_inds) < 0:
                 raise IndexError("frame indices out of bounds. Please specify "
-                                 "indices from 0 to {0}"
-                                  .format(self.frame_count-1))
+                                 "indices from 0 to %d" % (self.frame_count-1))
             # check that specified colorspace is correct
             if colorspace != 'BGR' and colorspace not in colors:
-                raise ValueError("{0} is not a valid colorspace. Please see "
+                raise ValueError("`%s` is not a valid colorspace. Please see "
                                   "function details for a list of valid colorspaces"
-                                  .format(colorspace))
+                                  % colorspace)
 
         # number of frames and layers
         n = np.size(frame_inds)
@@ -270,7 +270,6 @@ class Video:
 
         # convert downsampled frame indices to original scale
         return dsf * best_kf_ind
-
 
 class LabHistogram:
     def __init__(self,size,nbins=23):
