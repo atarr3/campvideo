@@ -7,6 +7,7 @@ import numpy as np
 import os
 
 from functools import partial
+from google.cloud import storage
 from google.cloud import videointelligence as vi
 from sklearn.metrics import pairwise_distances
 from sklearn.metrics.pairwise import cosine_similarity
@@ -158,6 +159,54 @@ class Video:
         self.__release()
 
         return (labhist_feat, hog_feat)
+    
+    # function for transcribing audio using GCP
+    def transcribe(self,phrases=[],use_punct=True):
+        """
+        """
+        # clients
+        v_client = vi.VideoIntelligenceServiceClient()
+        s_client = storage.Client('adclass-1286')
+        
+        # upload file to bucket
+        bucket = s_client.get_bucket('video_files')
+        blob = bucket.blob(self.title)
+        blob.upload_from_filename(self.file)
+        
+        # feature request
+        features = [vi.enums.Feature.SPEECH_TRANSCRIPTION]
+        
+        # construct SpeechTranscriptionConfig object
+        config = vi.types.SpeechTranscriptionConfig(
+                            language_code='en-US',
+                            speech_contexts=[
+                                    vi.types.SpeechContext(phrases=phrases)
+                                    ],
+                            enable_automatic_punctuation=use_punct
+                            )
+        
+        # construct VideoContext
+        context = vi.types.VideoContext(speech_transcription_config=config)
+        
+        # construct annotation request and get results
+        uri = 'gs://video_files/' + blob.name
+        operation = v_client.annotate_video(uri,
+                                            features=features,
+                                            video_context=context)
+        # timeout after 2 mins
+        try:
+            result = operation.result(timeout=120)
+        finally:
+            # always delete file
+            blob.delete()
+        
+        # transcript
+        results = result.annotation_results[0]
+        transcript = results.speech_transcriptions[0]
+        alternative = transcript.alternatives[0]
+        
+        self.transcript = alternative.transcript
+        return self.transcript
 
     # function for adaptively selecting keyframes via submodular optimization
     def kf_adaptive(self,l1=1.5,l2=3.5,niter=25,dsf=1):
