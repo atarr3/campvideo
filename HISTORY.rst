@@ -1,6 +1,11 @@
 History
 =======
 
+0.4.0 (11/27/2019)
+------------------
+-- Added face reconition and transcription capabilities.
+-- Added transcribe_vids script
+
 0.3.20 (11/16/2019)
 -------------------
 -- Terminating imtext when trying to read frames now skips to the next video.

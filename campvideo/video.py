@@ -22,16 +22,42 @@ class Video:
         self.__stream = cv2.VideoCapture(fpath)
 
         # video properties
-        self.file = fpath
-        self.title = os.path.splitext(os.path.basename(fpath))[0]
-        self.frame_count = int(self.__stream.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = self.__stream.get(cv2.CAP_PROP_FPS)
-        self.duration = self.frame_count / self.fps
-        self.resolution = (int(self.__stream.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                           int(self.__stream.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        self._file = os.path.abspath(fpath)
+        self._title = os.path.splitext(os.path.basename(fpath))[0]
+        self._frame_count = int(self.__stream.get(cv2.CAP_PROP_FRAME_COUNT))
+        self._fps = self.__stream.get(cv2.CAP_PROP_FPS)
+        self._duration = self.frame_count / self.fps
+        self._resolution = (int(self.__stream.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                            int(self.__stream.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        
+        # initialize transcript as None
+        self._transcript = None
 
         # close stream
         self.__release()
+        
+    # attribute reader functions
+    @property
+    def file(self):
+        return self._file
+    @property
+    def title(self):
+        return self._title
+    @property
+    def frame_count(self):
+        return self._frame_count
+    @property
+    def fps(self):
+        return self._fps
+    @property
+    def duration(self):
+        return self._duration
+    @property
+    def resolution(self):
+        return self._resolution
+    @property
+    def transcript(self):
+        return self._transcript
 
     # close VideoCapture stream
     def __release(self):
@@ -94,10 +120,10 @@ class Video:
             ret = self.__stream.set(1,frame_ind)
             # error handling
             if not ret:
-                raise Exception('Error setting stream to frame %d' % frame_ind+1)
+                raise Exception('Error setting stream to frame %d' % (frame_ind+1))
             flag,cf = self.__stream.read()
             if not flag:
-                raise Exception('Error decoding frame %d' % frame_ind+1)
+                raise Exception('Error decoding frame %d' % (frame_ind+1))
                 
             # resize
             if (cf.shape[1],cf.shape[0]) != size:
@@ -147,7 +173,7 @@ class Video:
             flag,cf = self.__stream.read()
             # check if issues decoding frames
             if not flag:
-                raise Exception('Error decoding frame %d' % frame_ind+1)
+                raise Exception('Error decoding frame %d' % (frame_ind+1))
             # reject monochramatic frames (determined by intensity std)
             # if no_mono and np.average(cf,axis=2,weights=[0.114,0.587,0.299]).std() < 10:
             #     continue
@@ -161,7 +187,7 @@ class Video:
         return (labhist_feat, hog_feat)
     
     # function for transcribing audio using GCP
-    def transcribe(self,phrases=[],use_punct=True):
+    def transcribe(self,phrases=[],use_punct=False):
         """
         """
         # clients
@@ -202,11 +228,12 @@ class Video:
         
         # transcript
         results = result.annotation_results[0]
-        transcript = results.speech_transcriptions[0]
-        alternative = transcript.alternatives[0]
+        transcript = ''
+        for speech_transcription in results.speech_transcriptions:
+            transcript += speech_transcription.alternatives[0].transcript
         
-        self.transcript = alternative.transcript
-        return self.transcript
+        self._transcript = transcript
+        return self._transcript
 
     # function for adaptively selecting keyframes via submodular optimization
     def kf_adaptive(self,l1=1.5,l2=3.5,niter=25,dsf=1):

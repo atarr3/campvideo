@@ -1,11 +1,10 @@
 import argparse
 import os
 import pandas as pd
-import sys
 
-from google.cloud import videointelligence as vi
-from google.cloud import storage
-from os.path import basename,exists,join,splitext
+from campvideo import Video
+from os.path import basename,exists,join,sep,splitext
+from timeit import default_timer
 
 STATES = {"AL":"Alabama", "AK":"Alaska","AR":"Arkansas","AZ":"Arizona","CA":"California",
           "CO":"Colorado","CT":"Connecticut","DE":"Delaware","FL":"Florida",
@@ -22,18 +21,9 @@ STATES = {"AL":"Alabama", "AK":"Alaska","AR":"Arkansas","AZ":"Arizona","CA":"Cal
 
 ELECTS = {'sen':'Senate','hou':'House','gov':'Gubernatorial','pre':'Presidential'}
 
-# returns list of videos in given directory which have a matching entry in WMP data
-def _matched_vids(vid_paths,wmp_file):
-    # load files
-    wmp = pd.read_csv(wmp_file,usecols=['uid']
-                     ).drop_duplicates(subset='uid')
-    ids = set(wmp.uid)
-
-    return [fpath for fpath in vid_paths if splitext(basename(fpath))[0] in ids]
-
-def _get_metadata(fpath):
+def get_metadata(fpath):
     # get election/year and state/name
-    elye,stna = fpath.split('\\')[-3:-1]
+    elye,stna = fpath.split(sep)[-3:-1]
     # convert to names.csv-friendly form
     year = elye[3:]
     elect = ELECTS[elye[:3]]
@@ -47,7 +37,7 @@ def _get_metadata(fpath):
 
     return elect,year,state,name
 
-def _build_context(df):
+def build_context(df):
     dem = df.iloc[0]['D'].split(',')
     rep = df.iloc[0]['R'].split(',')
     thi = df.iloc[0]['T'].split(',')
@@ -70,10 +60,10 @@ def parse_arguments():
 
     return parser.parse_args()
 
-if __name__ == '__main__':
+def main():
     # get CL arguments
     args = parse_arguments()
-    vid_dir,names = args.vid_dir,args.names_file
+    vid_dir,names_file = args.vid_dir,args.names_file
 
     # get video paths
     fpaths = [join(root,fname) for root,fold,fnames in os.walk(vid_dir)
@@ -82,45 +72,57 @@ if __name__ == '__main__':
     n_vids = len(fpaths)
 
     # open names file if given
-    if names is not None:
-        names = pd.read_csv(names,keep_default_na=False,encoding='mbcs')
+    if names_file != '':
+        names = pd.read_csv(names_file,keep_default_na=False)
 
     # output directory for transcripts (in root of vid_dir)
     if not exists(join(vid_dir,'transcripts')):
         os.mkdir(join(vid_dir,'transcripts'))
 
     # transcribe
-    for i,vid_path in enumerate(matched):
-        print('Transcribing video {0} of {1}...'.format(i+1,nvids),end=' ',flush=True)
-        # video id
-        cur_id = splitext(basename(vid_path))[0]
-        # metadata
-        elect,year,state,cand = _get_metadata(vid_path)
+    for i,fpath in enumerate(fpaths):
+        print('Transcribing video %d of %d... ' % (i+1,n_vids),end='',flush=True)
+        s = default_timer()
+        
+        # video name
+        cur_name = splitext(basename(fpath))[0]
+        # election metadata
+        elect,year,state,cand = get_metadata(fpath)
+        # transcript filename
+        tpath = join(vid_dir,'transcripts',cur_name + '.txt')
+        
         # check if video already transcribed
-        if exists(join(vid_dir,'transcripts',cur_id+'.txt')):
+        if exists(tpath):
             print('transcription already exists')
             continue
 
         # get context
-        if names is not None:
-            sub = names[(names.election == elect) & (names.year == int(year)) &
-                        (names.state == state) & ((names.D.str.contains(cand)) |
-                        (names.R.str.contains(cand)) | (names['T'].str.contains(cand)))]
+        if names_file != '':
+            sub = names[(names.election == elect) & 
+                        (names.year == int(year)) &
+                        (names.state == state) & 
+                        ((names.D.str.contains(cand)) |
+                        (names.R.str.contains(cand)) | 
+                        (names['T'].str.contains(cand)))]
             try:
-                context = _build_context(sub)
+                phrases = build_context(sub)
             except IndexError:
-                print('entry not found for {0} in the {1} {2} election in {3}'.format(cand,year,elect,state))
-                break
+                print('entry not found for %s in the %s %s election in %s' % (cand,year,elect,state))
+                raise
         else:
-            context = None
+            phrases = []
         # transcribe video
+        v = Video(fpath)
         try:
-            cur_trans = transcribe(vid_path,context)
-            with open(join(vid_dir,'transcripts',cur_id+'.txt'),'w') as tf:
-                tf.write(cur_trans)
-            print('success!')
+            cur_trans = v.transcribe(phrases=phrases)
+            with open(tpath,'wb') as tf:
+                tf.write(cur_trans.encode('utf-8'))
+            print('Done in %4.1f seconds!' % (default_timer()-s))
         except KeyboardInterrupt:
             raise
         except:
-            print('failed')
+            print('Failed')
             continue
+
+if __name__ == '__main__':
+    main()
