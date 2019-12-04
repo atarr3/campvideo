@@ -188,7 +188,24 @@ class Video:
     
     # function for transcribing audio using GCP
     def transcribe(self,phrases=[],use_punct=False):
-        """
+        """Transcribe the audio of the video using the Google Cloud Platform
+        
+        Args:
+            phrases : list, optional
+                A list of strings to use as hints for transcribing the audio.
+                Generally, this should be kept short and restricted to phrases
+                that are not found in the dictionary (e.g. names, locations).
+                The default value is an empty list [] (no phrases).
+                
+                Example
+                -------
+                vid = Video(vid_file)
+                phrases = ['Barack Obama', 'Mitt Romney']
+                vid.transcribe(phrases)
+                
+           use_punct : bool, optional
+               Boolean flag specifying whether or not to include punctuation in
+               the transcript. Default value is False. 
         """
         # clients
         v_client = vi.VideoIntelligenceServiceClient()

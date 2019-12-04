@@ -1,10 +1,16 @@
 History
 =======
 
-0.4.0 (11/27/2019)
+0.4.1 (12/03/2019)
+------------------
+-- Updated documentation for video transcription functions.
+-- transcribe_vids script output updated.
+
+0.4.0 (12/03/2019)
 ------------------
 -- Added face reconition and transcription capabilities.
--- Added transcribe_vids script
+-- Added transcribe_vids script.
+-- Data folder now distributed with package.
 
 0.3.20 (11/16/2019)
 -------------------

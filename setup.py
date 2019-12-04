@@ -2,13 +2,16 @@ from setuptools import setup
 
 setup(
     name='campvideo',
-    version='0.4.0',
+    version='0.4.1',
     description='Analyzes political campaign advertisements.',
     long_description=open('README.rst').read() + '\n\n' + open('HISTORY.rst').read(),
     author='Alex Tarr',
     author_email='atarr3@gmail.com',
     url='https://github.com/atarr3/campvideo',
     packages=['campvideo'],
+	package_data={
+		'campvideo': ['data/*.csv']
+	},
     entry_points={
         'console_scripts': [
             'audio_feats=campvideo.audio_feats:main',

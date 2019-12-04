@@ -4,6 +4,7 @@ import pandas as pd
 
 from campvideo import Video
 from os.path import basename,exists,join,sep,splitext
+from pkg_resources import get_distribution
 from timeit import default_timer
 
 STATES = {"AL":"Alabama", "AK":"Alaska","AR":"Arkansas","AZ":"Arizona","CA":"California",
@@ -20,6 +21,9 @@ STATES = {"AL":"Alabama", "AK":"Alaska","AR":"Arkansas","AZ":"Arizona","CA":"Cal
           "WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming","US":"United States"}
 
 ELECTS = {'sen':'Senate','hou':'House','gov':'Gubernatorial','pre':'Presidential'}
+
+# path to file containing candidate names for elections used in paper
+NAMES = join(get_distribution('campvideo').module_path,'campvideo','data','names.csv')
 
 def get_metadata(fpath):
     # get election/year and state/name
@@ -52,18 +56,18 @@ def build_context(df):
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('vid_dir',
+    parser.add_argument('vid-dir',
                         help='Path to video file directory for transcription')
-    parser.add_argument('-nf','--names-file',default='',
-                        help='Path to names data file for providing phrase hints'
-                             ' for speech transcription')
+    parser.add_argument('-up','--use-punct',action='store_true',default=False,
+                        help='Enables punctuation annotation for the transcript')
 
     return parser.parse_args()
 
 def main():
     # get CL arguments
     args = parse_arguments()
-    vid_dir,names_file = args.vid_dir,args.names_file
+    vid_dir = args.vid_dir
+    use_punct = args.use_punct
 
     # get video paths
     fpaths = [join(root,fname) for root,fold,fnames in os.walk(vid_dir)
@@ -71,33 +75,33 @@ def main():
                                        if fname.endswith('.mp4')]
     n_vids = len(fpaths)
 
-    # open names file if given
-    if names_file != '':
-        names = pd.read_csv(names_file,keep_default_na=False)
+    # open names file, leave empty cells as empty strings
+    names = pd.read_csv(NAMES,keep_default_na=False)
 
     # output directory for transcripts (in root of vid_dir)
     if not exists(join(vid_dir,'transcripts')):
         os.mkdir(join(vid_dir,'transcripts'))
 
-    # transcribe
-    for i,fpath in enumerate(fpaths):
-        print('Transcribing video %d of %d... ' % (i+1,n_vids),end='',flush=True)
-        s = default_timer()
-        
-        # video name
-        cur_name = splitext(basename(fpath))[0]
-        # election metadata
-        elect,year,state,cand = get_metadata(fpath)
-        # transcript filename
-        tpath = join(vid_dir,'transcripts',cur_name + '.txt')
-        
-        # check if video already transcribed
-        if exists(tpath):
-            print('transcription already exists')
-            continue
-
-        # get context
-        if names_file != '':
+    # debug file
+    with open(join(vid_dir,'log.txt'),'w') as lf:    
+        # transcribe
+        for i,fpath in enumerate(fpaths):
+            print('Transcribing video %d of %d... ' % (i+1,n_vids),end='',flush=True)
+            s = default_timer()
+            
+            # video name
+            cur_name = splitext(basename(fpath))[0]
+            # election metadata
+            elect,year,state,cand = get_metadata(fpath)
+            # transcript filename
+            tpath = join(vid_dir,'transcripts',cur_name + '.txt')
+            
+            # check if video already transcribed
+            if exists(tpath):
+                print('Transcription already exists')
+                continue
+    
+            # get context
             sub = names[(names.election == elect) & 
                         (names.year == int(year)) &
                         (names.state == state) & 
@@ -107,22 +111,22 @@ def main():
             try:
                 phrases = build_context(sub)
             except IndexError:
-                print('entry not found for %s in the %s %s election in %s' % (cand,year,elect,state))
-                raise
-        else:
-            phrases = []
-        # transcribe video
-        v = Video(fpath)
-        try:
-            cur_trans = v.transcribe(phrases=phrases)
+                print('Entry not found for %s in the %s %s election in %s' % (cand,year,elect,state),file=lf)
+                print('Failed')
+                continue
+    
+            # transcribe video
+            v = Video(fpath)
+            try:
+                cur_trans = v.transcribe(phrases=phrases,use_punct=use_punct)
+            except Exception as e:
+                msg = 'Failed on video `%s` with error: `%s`' % (fpath,str(e))
+                print(msg,file=lf)
+                print('Failed')
+                continue
             with open(tpath,'wb') as tf:
-                tf.write(cur_trans.encode('utf-8'))
+                    tf.write(cur_trans.encode('utf-8'))
             print('Done in %4.1f seconds!' % (default_timer()-s))
-        except KeyboardInterrupt:
-            raise
-        except:
-            print('Failed')
-            continue
 
 if __name__ == '__main__':
     main()
