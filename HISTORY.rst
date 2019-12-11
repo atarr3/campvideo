@@ -1,6 +1,10 @@
 History
 =======
 
+0.4.2 (12/07/2019)
+------------------
+-- Fixed image module import issue.
+
 0.4.1 (12/03/2019)
 ------------------
 -- Updated documentation for video transcription functions.

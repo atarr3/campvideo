@@ -18,12 +18,12 @@ MODEL_PATH = resource_filename('campvideo','models/frozen_east_text_detection.pb
 IMAGE_EXTS = ('.bmp','.jpg','.jpeg','.png','.tiff','.tif')
 
 # load neural net for text bounding box detection
-if exists(MODEL_PATH):
+try:
     text_net = cv2.dnn.readNet(MODEL_PATH)
-else:
-    raise Exception('Model data not installed. Please install the models by '
-                    'typing the following command into the command line:\n\n'
-                    'download_models')
+except cv2.error as e:
+    # only raise if file exists
+    if exists(MODEL_PATH):
+        raise e
 
 # image class for text and face recognition on video keyframes
 class Keyframes(object):
@@ -343,7 +343,14 @@ class Keyframes(object):
         # construct blob and compute network outputs at `layers`
         blob = cv2.dnn.blobFromImage(copy,1.0,(new_w,new_h),
                     (123.68,116.78,103.94),swapRB=True,crop=False)
-        text_net.setInput(blob)
+        try:
+            text_net.setInput(blob)
+        except NameError:
+            # model not loaded, print download_models message
+            msg = 'Model data not installed. Please install the models by ' \
+                  'typing the following command into the command line:\n\n' \
+                  'download_models'
+            raise Exception(msg)
         scores = text_net.forward(layers)[0]
 
         # check if any bounding box scores exceed confidence threshold
