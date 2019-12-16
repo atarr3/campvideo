@@ -56,7 +56,7 @@ def build_context(df):
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('vid-dir',
+    parser.add_argument('vid_dir',metavar='vid-dir',
                         help='Path to video file directory for transcription')
     parser.add_argument('-up','--use-punct',action='store_true',default=False,
                         help='Enables punctuation annotation for the transcript')
