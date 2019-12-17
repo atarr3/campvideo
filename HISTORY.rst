@@ -1,6 +1,10 @@
 History
 =======
 
+0.4.3 (12/16/2019)
+------------------
+-- Fixed transcribe_vids variable bug.
+
 0.4.2 (12/07/2019)
 ------------------
 -- Fixed image module import issue.
