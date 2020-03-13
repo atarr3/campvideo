@@ -1,58 +1,65 @@
 History
 =======
+0.4.4 (03/13/2020)
+------------------
+- Fixed issue with searching names in transcribe_vids script.
+- Fixed RGB / BGR inconsistencies in face recognition functions.
+- Added model option for face_recognition.
+- Landmark model for face recognition now uses large model by default.
+- File naming updated to be consistent with input data for summarize_vids script.
 
 0.4.3 (12/16/2019)
 ------------------
--- Fixed transcribe_vids variable bug.
+- Fixed transcribe_vids variable bug.
 
 0.4.2 (12/07/2019)
 ------------------
--- Fixed image module import issue.
+- Fixed image module import issue.
 
 0.4.1 (12/03/2019)
 ------------------
--- Updated documentation for video transcription functions.
--- transcribe_vids script output updated.
+- Updated documentation for video transcription functions.
+- transcribe_vids script output updated.
 
 0.4.0 (12/03/2019)
 ------------------
--- Added face reconition and transcription capabilities.
--- Added transcribe_vids script.
--- Data folder now distributed with package.
+- Added face reconition and transcription capabilities.
+- Added transcribe_vids script.
+- Data folder now distributed with package.
 
 0.3.20 (11/16/2019)
 -------------------
--- Terminating imtext when trying to read frames now skips to the next video.
--- If keyframes.txt already exists, imtext skips to the next video.
+- Terminating imtext when trying to read frames now skips to the next video.
+- If keyframes.txt already exists, imtext skips to the next video.
 
 0.3.19 (11/16/2019)
 -------------------
--- Fixed inconsistent shape error when running text detection on different-sized images.
+- Fixed inconsistent shape error when running text detection on different-sized images.
 
 0.3.18 (11/16/2019)
 -------------------
--- Added exceptions for missing directories.
+- Added exceptions for missing directories.
 
 0.3.17 (11/16/2019)
 -------------------
--- log.txt deleted at the beginning of imtext script call.
--- Better message formatting for standard output printing.
+- log.txt deleted at the beginning of imtext script call.
+- Better message formatting for standard output printing.
 
 0.3.16 (11/16/2019)
 -------------------
--- Corrected print issue in imtext.
+- Corrected print issue in imtext.
 
 0.3.15 (11/16/2019)
 -------------------
--- More debugging.
+- More debugging.
 
 0.3.14 (11/16/2019)
 -------------------
--- Import fixes.
+- Import fixes.
 
 0.3.13 (11/16/2019)
 -------------------
--- Updated imtext.
+- Updated imtext.
 
 0.3.12 (11/16/2019)
 -------------------

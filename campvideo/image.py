@@ -27,8 +27,7 @@ except cv2.error as e:
 
 # image class for text and face recognition on video keyframes
 class Keyframes(object):
-    def __init__(self,ims,names=None):
-        """Video keyframes class for image text detection and face recognition
+    """Video keyframes class for image text detection and face recognition
         
         Args:
             ims : array_like
@@ -43,7 +42,8 @@ class Keyframes(object):
             out : Keyframes
                 A Keyframes object containing the images and corresponding 
                 names, if specified.
-        """
+    """
+    def __init__(self,ims,names=None):
         # list of BGR images
         self.ims = list(ims)
         # extension for image type, always set to .png'
@@ -309,10 +309,14 @@ class Keyframes(object):
             known_enc = identity
             
         # calculate all encodings
-        unkn_encs = [enc for im in self.ims
-                             for enc in face_recognition.face_encodings(im)]
+        if not hasattr(self,'_unkn_encs'):
+            self._unkn_encs = [enc for im in self.ims
+                               for enc in face_recognition.face_encodings(
+                                       # convert to RGB
+                                       cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
+                                       )]
         
-        dists = face_recognition.face_distance(unkn_encs,known_enc)
+        dists = face_recognition.face_distance(self._unkn_encs,known_enc)
         
         # return distances if specified, else return if any encoding is below
         # specified threshold

@@ -1,6 +1,7 @@
 import argparse
 import os
 import pandas as pd
+import string
 
 from campvideo import Video
 from os.path import basename,exists,join,sep,splitext
@@ -102,12 +103,17 @@ def main():
                 continue
     
             # get context
+            # remove comma and add space
+            punct = string.punctuation.replace(',','') + ' '
+            # translation table
+            tt = str.maketrans(dict.fromkeys(punct))
             sub = names[(names.election == elect) & 
                         (names.year == int(year)) &
                         (names.state == state) & 
-                        ((names.D.str.contains(cand)) |
-                        (names.R.str.contains(cand)) | 
-                        (names['T'].str.contains(cand)))]
+                        ((names.D.str.translate(tt).str.contains(cand,case=False)) |
+                         (names.R.str.translate(tt).str.contains(cand,case=False)) | 
+                         (names['T'].str.translate(tt).str.contains(cand,case=False))
+                        )]
             try:
                 phrases = build_context(sub)
             except IndexError:

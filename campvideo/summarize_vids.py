@@ -10,7 +10,7 @@ import stat
 
 from campvideo.video import Video
 from cv2 import imwrite
-from os.path import normpath,join,relpath,splitext,basename
+from os.path import normpath,join,relpath,splitext,basename,dirname
 from shutil import rmtree
 from tempfile import TemporaryDirectory
 from timeit import default_timer
@@ -83,12 +83,12 @@ def main():
             kf_ind = (v_orig.frame_count * kf_ind) // v_res.frame_count
             
             # output directory for summary
-            out_dir = join(summ_dir,relpath(splitext(fpath)[0],vid_dir))
+            out_dir = join(summ_dir,relpath(dirname(fpath),vid_dir))
             if not os.path.exists(out_dir):
                 os.makedirs(out_dir)
             
             # save keyframes indices
-            kf_file = join(out_dir,'keyframes.txt')
+            kf_file = join(out_dir,splitext(basename(fpath))[0] + '.txt')
             kf_out = []
             with open(kf_file,'w') as fn:
                 for i,kf in enumerate(v_orig.frames(kf_ind)):
