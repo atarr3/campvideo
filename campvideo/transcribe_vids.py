@@ -82,6 +82,11 @@ def main():
     # output directory for transcripts (in root of vid_dir)
     if not exists(join(vid_dir,'transcripts')):
         os.mkdir(join(vid_dir,'transcripts'))
+        
+    # punctuation list (remove comma and add space)
+    punct = string.punctuation.replace(',','') + ' '
+    # translation table
+    tt = str.maketrans(dict.fromkeys(punct))
 
     # debug file
     with open(join(vid_dir,'log.txt'),'w') as lf:    
@@ -103,10 +108,7 @@ def main():
                 continue
     
             # get context
-            # remove comma and add space
-            punct = string.punctuation.replace(',','') + ' '
-            # translation table
-            tt = str.maketrans(dict.fromkeys(punct))
+            # remove punctuation from names when searching
             sub = names[(names.election == elect) & 
                         (names.year == int(year)) &
                         (names.state == state) & 
