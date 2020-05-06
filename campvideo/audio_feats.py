@@ -8,6 +8,7 @@ import pandas as pd
 from argparse import ArgumentParser
 from campvideo.audio import Audio
 from os.path import join,basename,splitext
+from timeit import default_timer
 
 def parse_arguments():
     parser = ArgumentParser()
@@ -66,13 +67,19 @@ def main():
     feat = pd.DataFrame(columns=list(range(fdim)),dtype=float)
         
     # compute feature
-    for fpath in fpaths_filtered:
+    n = len(fpaths_filtered)
+    for i,fpath in enumerate(fpaths_filtered):
+        print("Processing video %d of %d.... " % (i+1,n),end='',flush=True)
+        s = default_timer()
+        
         # file ID
         fname = splitext(basename(fpath))[0]
         # feature
         aud = Audio(fpath,fs=22050,nfft=1024,pre_emph=0.95)
         # add to dataframe
         feat.loc[fname] = aud.audiofeat(feature_set=feature_set)
+        
+        print("Done in %.1fs" % (default_timer()-s))
         
     # save in vid_dir
     feat.to_csv(join(vid_dir,'mfeats_' + feature_set + '.csv'))
