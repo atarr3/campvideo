@@ -32,11 +32,13 @@ def get_metadata(fpath):
     # convert to names.csv-friendly form
     year = elye[3:]
     elect = ELECTS[elye[:3]]
-    state = STATES[stna[:2]]
+    state = STATES[stna[:2]] if elect != "Presidential" else STATES[stna[2:4]]
     # get district
     if elect == 'House':
-         state += ' ' + stna[2:4].lstrip('0')
-         name = stna[5:]
+        state += ' ' + stna[2:4].lstrip('0')
+        name = stna[5:]
+    elif elect == 'Presidential':
+        name = stna[5:]
     else:
         name = stna[3:]
 
