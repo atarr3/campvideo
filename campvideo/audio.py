@@ -161,7 +161,6 @@ class Audio(object):
         -------
         feat : array_like
             The computed feature derived from the spectrogram. 
-
         """
         # check proper feature_set specification
         if feature_set not in {'best','all','no-joint'}:
@@ -222,7 +221,7 @@ class Audio(object):
         # first compute feature
         feat = self.audiofeat()
         
-        # now classify
+        # classify
         if combine_negative:
             mood = np.array([m4.predict(feat), m2.predict(feat)])
         else:
