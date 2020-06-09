@@ -10,7 +10,7 @@ setup(
     url='https://github.com/atarr3/campvideo',
     packages=['campvideo'],
 	package_data={
-		'campvideo': ['data/*.csv']
+		'campvideo': ['data/*.csv', 'models/*.pkl']
 	},
     entry_points={
         'console_scripts': [

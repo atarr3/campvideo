@@ -1,18 +1,95 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import ffmpeg
 import numpy as np
+import pickle
 
 from os.path import basename,join,splitext
+from pkg_resources import resource_filename
 from scipy.fftpack import dct
 from scipy.io.wavfile import read
 from scipy.signal import lfilter, spectrogram
 from tempfile import TemporaryDirectory
 
+# mood classification models
+M1_PATH = resource_filename('campvideo','models/music1.pkl')
+M2_PATH = resource_filename('campvideo','models/music2.pkl')
+M3_PATH = resource_filename('campvideo','models/music3.pkl')
+M4_PATH = resource_filename('campvideo','models/music4.pkl')
+
+# load in with module
+with open(M1_PATH,'rb') as fh:
+    m1 = pickle.load(fh)
+
+with open(M2_PATH,'rb') as fh:
+    m2 = pickle.load(fh)
+    
+with open(M3_PATH,'rb') as fh:
+    m3 = pickle.load(fh)
+    
+with open(M4_PATH,'rb') as fh:
+    m4 = pickle.load(fh)
+    
 # audio class for computing spectrogram and spectral feats.
 class Audio(object):
+    """Audio class for representing the spectrogram, with a method for 
+    computing a spectrogram-based feature useful for general audio
+    classification tasks, a method for computing the spectral fingerprint, and 
+    a method for classifying the mood of the audio using pre-trained models.
+         
+    Parameters
+    ----------
+    path : str
+        The path to the video or audio file. 
+        
+    normalize : bool, optional
+        Boolean flag for normalizing the raw audio data to [-1,1]. The 
+        default is True.
+        
+    fs : int, optional
+        The sampling frequency at which to compute the spectrogram. This 
+        value should not be set higher than the native sampling frequency 
+        of the input file. The default is 5000 (samples/s).
+        
+    nfft : int, optional
+        The number of FFT coefficients to calculate. The default is 1024.
+        
+    wfunc : callable, optional
+        Window function applied to each frame when computing the 
+        spectrogram. The function must take an array of points as input and
+        return an array of the same size representing the window function 
+        value at those points. The default is a Hamming window.
+        
+    wlen : int, optional
+        The number of samples in each frame when computing the spectrogram.
+        The default is nfft.
+        
+    overlap : float, optional
+        The amount of overlap between frames of the spectrogram. The 
+        default is 0.5, indicating each consecutive frame contains
+        50% of the samples in the previous frame.
+        
+    pre_emph : float, optional
+        Coefficient for the pre-emphasis filter, which amplifies higher 
+        frequency components before computing the spectrogram. Valid values
+        fall in the range [0, 1). The default is 0.
+        
+    scaling : str, optional
+        Selects between computing the PSD representation of the spectrogram
+        ('density') or the magnitude spectrum representation ('spectrum').
+        The default is 'density'.
+        
+    mode : str, optional
+        Defines the kind of return values for the spectrogram. 'psd' yields
+        a two-sided specturm (at both positive and negative frequencies),
+        while 'magnitude' returns the one-sided magnitude spectrum (i.e, 
+        the magnitude of the STFT). The default is 'psd'.
+        
+    Returns
+    -------
+    out : Audio
+        An Audio object with attributes containing information about the
+        spectrogram and methods for computing the fingerprint and the audio, 
+        and for classifying the mood.
+    """
     def __init__(self,path,normalize=True,fs=5000,nfft=1024,wfunc=np.hamming,
                   wlen=None,overlap=0.5,pre_emph=0.,scaling='density',mode='psd'):
         # set parameters
@@ -64,92 +141,28 @@ class Audio(object):
 
         # set attributes, spectrogram is time x freq
         self.freq,self.time,self.spectrogram = f,t,S.T
-
-    # function for converting from psd to magnitude spectrum
-    def psd2mag(self,scaling='spectrum'):
-        # deep copy of spectrogram (currently the PSD)
-        spect = self.spectrogram.copy()
-
-        # one-sided rescaling
-        if self.nfft % 2:
-            spect[...,1:] *= 2
-        else:
-            spect[...,1:-1] *= 2
-
-        # change scaling between density and spectrum
-        if scaling != self.scaling:
-            if self.scaling == 'density':
-                spect *= self._dens2spect_scale
-            else:
-                spect /= self._dens2spect_scale
-
-        # take square root
-        return np.sqrt(spect)
-
-    # function for converting from magnitude spectrum to psd
-    def mag2psd(self,scaling='density'):
-        # deep copy of spectrogram (currently the magnitude spectrum)
-        spect = self.spectrogram.copy()
-
-        # one-sided rescaling
-        if self.nfft % 2:
-            spect[...,1:] /= np.sqrt(2)
-        else:
-            spect[...,1:-1] /= np.sqrt(2)
-
-        # swap scaling if specified
-        if scaling != self.scaling:
-            if self.scaling == 'density':
-                spect *= np.sqrt(self._dens2spect_scale)
-            else:
-                spect /= np.sqrt(self._dens2spect_scale)
-
-        # take square
-        return spect ** 2
-
-
-    # function for computing energy in logarithmically spaced bands for each frame
-    # in a spectrogram
-    def energy(self,nbands=33,fmin=300,fmax=2000):
-        # initialization
-        fs,nfft = self.fs,self.nfft
-        # need psd to compute energy
-        S = self.spectrogram if self.mode == 'psd' else self.mag2psd()
-
-        # assert fmax < fs/2
-        if fmax >= fs/2:
-            raise ValueError('fmax must be below the Nyquist frequency')
-
-        # filterbank critical points
-        cp_k = np.round(np.geomspace(fmin * nfft/fs,fmax * nfft/fs,nbands+1)
-                       ).astype(int)
-
-        # compute sums in each band and concatenate (this is incorrect when mode != psd)
-        eb = np.column_stack([band.sum(axis=1)
-                              for band in np.split(S,cp_k,axis=1)[1:-1]
-                             ])
-
-        return eb
-
-    # function for computing audio fingerprint from spectrogram
-    def fingerprint(self,reliability=True):
-        # compute energy in each frame
-        eb = self.energy()
-
-        # compute difference for adjacent frames and bands
-        eb_diff = np.diff(-np.diff(eb,axis=1),axis=0)
-
-        # binarize according to sign and convert to int and compute reliability
-        code = np.fromiter((_bin2int(bits) for bits in eb_diff > 0),dtype=np.uint32)
-
-        # return fingerprint and array index (not bit!) of 3 least reliable bits
-        rel = 31-np.argsort(np.abs(eb_diff),axis=1)[...,:3] if reliability else None
-
-        return code,rel
-
+        
     # create feature vector from spectrogram for use in mood classification and
     # sentiment analysis
     def audiofeat(self,feature_set='best'):
+        """Computes an audio feature based on the spectrogram.
+
+        Parameters
+        ----------
+        feature_set : str, optional
+            Type of feature set used to create the feature. Valid values are
+            {'best', 'all', and 'no-joint'}. 'best' is the feature set which 
+            gave the best performance in music mood classification, 'all' is 
+            the set of all possible features implemented in this class, and 
+            'no-joint' uses all features except the joint frequency features.
+            The default is 'best'.
+
+        Returns
+        -------
+        feat : array_like
+            The computed feature derived from the spectrogram. 
+
+        """
         # check proper feature_set specification
         if feature_set not in {'best','all','no-joint'}:
             raise ValueError("Invalid value for feature_set")
@@ -181,17 +194,91 @@ class Audio(object):
             return np.hstack((feat_st,feat_lt,joint_feats))
         else:
             return np.hstack((feat_st,feat_lt))
+        
+    # function for classifying the music mood of the input file
+    def musicmood(self,combine_negative=False):
+        """Classifies the mood the audio file as ominous/tense, uplifting, and
+        sad/sorrowful. Each mood is classified separately from one another, so
+        it is possible for the input file to be classified as all three.
+
+        Parameters
+        ----------
+        combine_negative : bool, optional
+            Boolean flag for specifying whether or not to combine the negative
+            mood classes, ominous/tense and sad/sorrowful, into a single class. 
+            The default is False.
+
+        Returns
+        -------
+        mood : array_like
+            A 0-1 array of the classification results. The first element
+            corresponds to whether or not the mood is classified as 
+            ominous/tense, the second element corresponds to whether or not the
+            mood is classified as uplifiting, and the third element corresponds
+            to whether or not the mood is sad/sorrowful. If `combine_mood` is
+            True, the first element corresponds to the combined negative class,
+            and the second element corresponds to the uplifting class. 
+        """
+        # first compute feature
+        feat = self.audiofeat()
+        
+        # now classify
+        if combine_negative:
+            mood = np.array([m4.predict(feat), m2.predict(feat)])
+        else:
+            mood = np.array([m1.predict(feat), m2.predict(feat), m3.predict(feat)])
+        
+        return mood
+
+    # function for computing audio fingerprint from spectrogram
+    def fingerprint(self,reliability=True):
+        """Computes the fingerprint representation of the spectrogram according
+        to Haitsma & Kalker (2002). Useful feature for matching audio files to 
+        one another.
+
+        Parameters
+        ----------
+        reliability : bool, optional
+            Boolean flag for specifying whether or not to return the 
+            reliability of the three most unreliable bits in each row of the 
+            fingerprint. The default is True.
+
+        Returns
+        -------
+        code : array_like
+            The fingerprint representation of the spectrogram.
+        rel : array_like
+            The index of the three most unreliable bits in each row of the 
+            fingerprint.
+        """
+        # compute energy in each frame
+        eb = self._energy()
+
+        # compute difference for adjacent frames and bands
+        eb_diff = np.diff(-np.diff(eb,axis=1),axis=0)
+
+        # binarize according to sign and convert to int and compute reliability
+        code = np.fromiter((_bin2int(bits) for bits in eb_diff > 0),dtype=np.uint32)
+
+        # return fingerprint and array index (not bit!) of 3 least reliable bits
+        rel = 31-np.argsort(np.abs(eb_diff),axis=1)[...,:3] if reliability else None
+
+        return code,rel
 
     # statistical spectrum descriptor for spectrogram (STFT)
     def _ssd(self):
-        """ Computes statistcal measures for the magnitude spectrum, including
+        """ Computes statistical measures for the magnitude spectrum, including
         the spectral centroid, spectral flux, spectral rolloff, skewness, and
         kurtosis.
-
-        Args:
+        
+        Returns
+        -------
+        feat : array_like
+            The statistical spectrum descriptor (SSD) feature array. Each row
+            corresponds to the SSD for that frame in the spectrogram.
         """
         # get spectrogram and convert from psd if necessary
-        spect = self.spectrogram if self.mode != 'psd' else self.psd2mag()
+        spect = self.spectrogram if self.mode != 'psd' else self._psd2mag()
         # frequencies
         freq = self.freq
 
@@ -235,17 +322,28 @@ class Audio(object):
         """ Computes the Mel-frequency cepstral coefficients for the audio
         file.
 
-        Args:
-            d:     Number of coefficients to keep (default is 20)
-            b:     Number of bandpass filters (default is 25)
-            f_min: Minimum frequency of bandpass filter bank (default is 300)
-            f_max: Maximum frequency of bandpass filter bank (default is Fs/2)
+        Parameters
+        ----------
+        d : int, optional    
+            Number of coefficients to keep. The default is 20.
+        b : int, optional    
+            Number of bandpass filters. The default is 25.
+        f_min : int, optional
+            Minimum frequency of bandpass filter bank. The default is 300 Hz.
+        f_max : int, optional
+            Maximum frequency of bandpass filter bank. The default is Fs/2 Hz.
+            
+        Returns
+        -------
+        mfcc : array_like
+            The MFCC feature array. Each row corresponds to the MFCC for that 
+            frame in the spectrogram.
         """
         if f_max is None:
             f_max = self.freq[-1]
 
         # signal attributes
-        psd = self.mag2psd() if self.mode != 'psd' else self.spectrogram
+        psd = self._mag2psd() if self.mode != 'psd' else self.spectrogram
         fs = self.fs
         nfft = self.nfft
 
@@ -267,10 +365,14 @@ class Audio(object):
         """ Computes the octave-based spectral contrast, spectral flatness
         measure, and spectral crest measure for the spectrogram.
 
-        Args:
+        Returns
+        -------
+        feat : array_like
+            The OSC feature array. Each row corresponds to the OSC for that 
+            frame in the spectrogram.
         """
         # signal properties
-        spect = self.spectrogram if self.mode != 'psd' else self.psd2mag()
+        spect = self.spectrogram if self.mode != 'psd' else self._psd2mag()
         nfft = self.nfft
         fs = self.fs
 
@@ -323,16 +425,26 @@ class Audio(object):
 
     # modulation spectrogram
     def _mfeat_spect(self,feat,wlen=256,overlap=0.5):
-        """Function for computing a feature vector of statistical descriptors
-        derived from the modulation feature spectrogram.
+        """Computes a feature vector of statistical descriptors derived from 
+        the modulation feature spectrogram.
 
-        Args:
-            feat:    n x d feature spectrogram, with d the dimension of the
-                     feature and n the number of frames in the input
-                     spectrogram
-            wlen:    The the length of the texture window for computation of the
-                     FFT
-            overlap: Overlap factor between consecutive frames
+        Parameters
+        ----------
+        feat : array_like    
+            n x d feature spectrogram, with d the dimension of the
+            feature and n the number of frames in the input
+            spectrogram.
+        wlen : int, optional    
+            The the length of the texture window for computation of the
+            FFT. The default is 256 samples.
+        overlap : float, optional 
+            Overlap factor between consecutive frames. The default value 
+            is 0.5,
+                
+        Returns
+        -------
+        mspect_feat : array_like
+            The modulation feature spectrogram for the input feature.
         """
         # input spectrogram properties
         n,d = feat.shape
@@ -380,14 +492,16 @@ class Audio(object):
         """ Computes the joint frequency modulation spectrogram and the AMSC,
         AMSV, AMSFM, and AMSCM joint frequency features.
 
-        Args:
-            b: The number of modulation frequency subbands for reducing feature
-               dimensionality
+        Returns
+        -------
+        feat : array_like
+            The joint-frequency features derived from the joint-frequency 
+            spectrogram. See paper for details.
         """
         # spectrogram properties
         fs_ac = self.fs
         fs_mo = 1 / (self.time[1]-self.time[0])
-        spect = self.spectrogram if self.mode != 'psd' else self.psd2mag()
+        spect = self.spectrogram if self.mode != 'psd' else self._psd2mag()
         nfft_ac = self.nfft
         nfft_mo = len(spect)
 
@@ -441,6 +555,71 @@ class Audio(object):
 
         # return feature vector
         return np.concatenate((amsv,amsp-amsv,amsfm,amscm))
+    
+    # function for converting from psd to magnitude spectrum
+    def _psd2mag(self,scaling='spectrum'):
+        # deep copy of spectrogram (currently the PSD)
+        spect = self.spectrogram.copy()
+
+        # one-sided rescaling
+        if self.nfft % 2:
+            spect[...,1:] *= 2
+        else:
+            spect[...,1:-1] *= 2
+
+        # change scaling between density and spectrum
+        if scaling != self.scaling:
+            if self.scaling == 'density':
+                spect *= self._dens2spect_scale
+            else:
+                spect /= self._dens2spect_scale
+
+        # take square root
+        return np.sqrt(spect)
+
+    # function for converting from magnitude spectrum to psd
+    def _mag2psd(self,scaling='density'):
+        # deep copy of spectrogram (currently the magnitude spectrum)
+        spect = self.spectrogram.copy()
+
+        # one-sided rescaling
+        if self.nfft % 2:
+            spect[...,1:] /= np.sqrt(2)
+        else:
+            spect[...,1:-1] /= np.sqrt(2)
+
+        # swap scaling if specified
+        if scaling != self.scaling:
+            if self.scaling == 'density':
+                spect *= np.sqrt(self._dens2spect_scale)
+            else:
+                spect /= np.sqrt(self._dens2spect_scale)
+
+        # take square
+        return spect ** 2
+
+    # function for computing energy in logarithmically spaced bands for each frame
+    # in a spectrogram
+    def _energy(self,nbands=33,fmin=300,fmax=2000):
+        # initialization
+        fs,nfft = self.fs,self.nfft
+        # need psd to compute energy
+        S = self.spectrogram if self.mode == 'psd' else self._mag2psd()
+
+        # assert fmax < fs/2
+        if fmax >= fs/2:
+            raise ValueError('fmax must be below the Nyquist frequency')
+
+        # filterbank critical points
+        cp_k = np.round(np.geomspace(fmin * nfft/fs,fmax * nfft/fs,nbands+1)
+                       ).astype(int)
+
+        # compute sums in each band and concatenate (this is incorrect when mode != psd)
+        eb = np.column_stack([band.sum(axis=1)
+                              for band in np.split(S,cp_k,axis=1)[1:-1]
+                             ])
+
+        return eb
 
 # function for getting the duration of a media file
 def get_dur(med_file):
@@ -557,18 +736,8 @@ def _trifil_mel(f_min,f_max,nfft,fs,b=25):
 
 # convert Hz to mel scale
 def _hz2mel(freq):
-    """Converts Hz to mel scale.
-
-    Args:
-        freq: Frequency in Hz
-    """
     return 1127*np.log(1 + freq / 700.0)
 
 # convert mel to Hz scale
 def _mel2hz(freq):
-    """Converts mel to Hz scale.
-
-    Args:
-        freq: Frequency in mels
-    """
     return 700*(np.exp(freq / 1127.0) - 1)

@@ -55,7 +55,7 @@ class Keyframes(object):
     # construct from directory of images
     @classmethod
     def fromdir(cls,im_path):
-        """Construct a Keyframes object from a directory of images
+        """Construct a Keyframes object from a directory of images.
         
         Args:
             im_path : string
