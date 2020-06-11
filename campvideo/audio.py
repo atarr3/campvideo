@@ -232,7 +232,7 @@ class Audio(object):
         else:
             mood = np.array([m1.predict(feat), m2.predict(feat), m3.predict(feat)])
         
-        return mood
+        return mood.squeeze()
 
     # function for computing audio fingerprint from spectrogram
     def fingerprint(self,reliability=True):
