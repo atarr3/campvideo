@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='campvideo',
-    version='0.4.7',
+    version='0.4.8',
     description='Analyzes political campaign advertisements.',
     long_description=open('README.rst').read() + '\n\n' + open('HISTORY.rst').read(),
     author='Alex Tarr',

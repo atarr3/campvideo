@@ -95,8 +95,8 @@ class Audio(object):
         The computed spectrogram, with time along the rows and frequency
         along the columns.
     """
-    def __init__(self,path,normalize=True,fs=5000,nfft=1024,wfunc=np.hamming,
-                  wlen=None,overlap=0.5,pre_emph=0.,scaling='density',mode='psd'):
+    def __init__(self,path,normalize=True,fs=22050,nfft=1024,wfunc=np.hamming,
+                  wlen=None,overlap=0.5,pre_emph=0.95,scaling='density',mode='psd'):
         # set parameters
         self.path = path
         self.fs,self.nfft = fs,nfft
