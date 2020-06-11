@@ -1,18 +1,50 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import cv2
+import ffmpeg
 import numpy as np
 import os
 
 from functools import partial
 from google.cloud import storage
 from google.cloud import videointelligence as vi
-from sklearn.metrics import pairwise_distances
+from os.path import join
+from sklearn.metrics import pairwise_distances, pairwise_kernels
 from sklearn.metrics.pairwise import cosine_similarity
+from tempfile import TemporaryDirectory
 
 class Video:
+    """Video class for extracting specific frames, computing the video summary,
+    and using the GCP videointelligence API to transcribe the video.
+    
+    Parameters
+    ----------
+    fpath : str
+        The path to the video file.
+    
+    Attributes
+    ----------
+    file : str
+        The full path for the video file.
+        
+    title : str
+        The name of the file.
+        
+    frame_count : int
+        The number of frames in the video
+        
+    fps : float
+        The FPS of the video.
+        
+    duration : float
+        The length of the video in seconds.
+        
+    resolution : tuple
+        The resolution of the video (width, height)
+        
+    transcript : str
+        The transcript of the video. Initially unset until `transcribe()` is
+        called.
+    """
+    
     def __init__(self,fpath):
         # check that file exists
         if not os.path.exists(fpath):
@@ -64,21 +96,32 @@ class Video:
         self.__stream.release()
 
     # method for grabbing specified frames
-    def frames(self,frame_inds=None,size=None,colorspace='BGR'):
-        """Returns the requested frames as an N x H x W x C uint8 numpy array.
+    def frames(self,frame_ind=None,size=None,colorspace='BGR'):
+        """Returns the requested video frames.
 
-        Args:
-            frame_ind : int array, optional
-                The indices of the frames to be retrieved. Returns all frames by
-                default.
-            size : int tuple, optional
-                Two-element tuple specifying the desired size of the frames
-                with width as the first element and height as the second
-                element. Default value is the native resolution.
-            colorspace : str, optional
-                String specifying the colorspace representation of the frames.
-                Valid options include 'RGB','BGR','YUV','HSV','Lab', and
-                'gray'. Default value is 'BGR'.
+        Parameters
+        ----------
+        frame_ind : array_like, optional
+            The indices of the frames to be retrieved. Returns all frames by
+            default.
+            
+        size : tuple, optional
+            Two-element tuple specifying the desired size of the frames
+            with width as the first element and height as the second
+            element. The default is the native resolution.
+            
+        colorspace : str, optional
+            String specifying the colorspace representation of the frames.
+            Valid options include 'RGB','BGR','YUV','HSV','Lab', and
+            'gray'. The default is 'BGR'.
+            
+        Returns
+        -------
+        frames : array_like
+            The array containing the extracted frames. The first dimension 
+            indexes the frames, the second dimension indexes the the rows of 
+            each frame, the third dimension idexes the columns, and the fourth
+            dimension indexes the color layers.
         """
         # color conversion dictionary
         colors = {'RGB' : cv2.COLOR_BGR2RGB,'YUV' : cv2.COLOR_BGR2YUV,
@@ -86,17 +129,21 @@ class Video:
                   'gray' : cv2.COLOR_BGR2GRAY}
 
         # create iterable if one index specified
-        if frame_inds is not None and not np.iterable(frame_inds):
-            frame_inds = [frame_inds]
-        if frame_inds is not None and len(frame_inds) == 0:
+        if frame_ind is not None:
+            frame_ind = np.atleast_1d(frame_ind)
+        if frame_ind is not None and len(frame_ind) == 0:
             return []
+        # all frames returned if frame_inds is None
+        if frame_ind is None:
+            frame_ind = np.arange(self.frame_count)
+            
         # frame resolution
         if size is None:
             size = self.resolution
 
         # check if frame_ind contains out-of-bounds entries
-        if frame_inds is not None:
-            if np.max(frame_inds) >= self.frame_count or np.min(frame_inds) < 0:
+        if frame_ind is not None:
+            if np.max(frame_ind) >= self.frame_count or np.min(frame_ind) < 0:
                 raise IndexError("frame indices out of bounds. Please specify "
                                  "indices from 0 to %d" % (self.frame_count-1))
             # check that specified colorspace is correct
@@ -106,7 +153,7 @@ class Video:
                                   % colorspace)
 
         # number of frames and layers
-        n = np.size(frame_inds)
+        n = np.size(frame_ind)
         if colorspace == 'gray':
             frames = np.empty((n,size[1],size[0]),dtype='uint8')
         else:
@@ -116,14 +163,14 @@ class Video:
         self.__stream = cv2.VideoCapture(self.file)
 
         # read frames from queue
-        for i,frame_ind in enumerate(frame_inds):
-            ret = self.__stream.set(1,frame_ind)
+        for i,cur_ind in enumerate(frame_ind):
+            ret = self.__stream.set(1,cur_ind)
             # error handling
             if not ret:
-                raise Exception('Error setting stream to frame %d' % (frame_ind+1))
+                raise Exception('Error setting stream to frame %d' % (cur_ind+1))
             flag,cf = self.__stream.read()
             if not flag:
-                raise Exception('Error decoding frame %d' % (frame_ind+1))
+                raise Exception('Error decoding frame %d' % (cur_ind+1))
                 
             # resize
             if (cf.shape[1],cf.shape[0]) != size:
@@ -138,74 +185,57 @@ class Video:
         self.__release()
 
         return frames
-
-    # method for computing frame features
-    def feats(self,dsf=1,no_mono=True):
-        """Computes the Lab histogram and HOG features for the frames in the
-           video. Returns a tuple of feature arrays (labhist, hog)
-
-        Args:
-            dsf : int, optional
-                Downsampling factor. The features are computed for frames
-                np.arange(0,self.frame_count,dsf). Default value is 1.
-            no_mono : bool, optional
-                Boolena flag for specifying the removal of monochramatic frame
-                (e.g. black), which contain no visual information. Default value
-                is True.
+    
+    # function for showing specified frames
+    def show(self,frame_ind,wait=None):
+        """ Displays the keyframes
+        
+        Parameters
+        ----------
+        frame_ind : array_like
+            Indices of frames to display.
+            
+        wait : int, optional
+            Delay between showing consecutive images, in milliseconds.
+            Default value is infinite, instead waiting for a key press from
+            the user to display the next keyframe.
         """
-
-        # frame indices
-        frame_inds = np.arange(0,self.frame_count,dsf)
-
-        # feature class instantiation
-        hog = HOG(self.resolution)
-        labhist = LabHistogram(self.resolution)
-
-        # number of frames after downsampling
-        n = len(frame_inds)
-
-        labhist_feat = np.zeros((n,labhist.dimension),dtype=np.float32)
-        hog_feat = np.zeros((n,hog.dimension),dtype=float)
-
-        self.__stream = cv2.VideoCapture(self.file)
-        for i,frame_ind in enumerate(frame_inds):
-            self.__stream.set(1,frame_ind)
-            flag,cf = self.__stream.read()
-            # check if issues decoding frames
-            if not flag:
-                raise Exception('Error decoding frame %d' % (frame_ind+1))
-            # reject monochramatic frames (determined by intensity std)
-            # if no_mono and np.average(cf,axis=2,weights=[0.114,0.587,0.299]).std() < 10:
-            #     continue
-            # compute features
-            labhist_feat[i] = labhist.compute(cf)
-            hog_feat[i] = hog.compute(cf)
-
-        # close stream
-        self.__release()
-
-        return (labhist_feat, hog_feat)
+        # get frames
+        frames = self.frames(np.atleast_1d(frame_ind))
+        # wait until key press if not specified
+        if wait is None: wait = 0
+        
+        for i,im in zip(frame_ind,frames):
+            cv2.imshow("Frame %d" % i, im)
+            cv2.waitKey(wait)
+            cv2.destroyAllWindows()
     
     # function for transcribing audio using GCP
     def transcribe(self,phrases=[],use_punct=False):
         """Transcribe the audio of the video using the Google Cloud Platform
         
-        Args:
-            phrases : list, optional
-                A list of strings to use as hints for transcribing the audio.
-                Generally, this should be kept short and restricted to phrases
-                that are not found in the dictionary (e.g. names, locations).
-                The default value is an empty list [] (no phrases).
-                
-                Example
-                -------
-                vid = Video(vid_file)
-                phrases = ['Barack Obama', 'Mitt Romney']
-                vid.transcribe(phrases)
-                
-           use_punct : bool, optional
-               Boolean flag specifying whether or not to include punctuation in
-               the transcript. Default value is False. 
+        Parameters
+        ----------
+        phrases : list, optional
+            A list of strings to use as hints for transcribing the audio.
+            Generally, this should be kept short and restricted to phrases
+            that are not found in the dictionary (e.g. names, locations).
+            The default value is an empty list [] (no phrases).
+             
+        use_punct : bool, optional
+            Boolean flag specifying whether or not to include punctuation in
+            the transcript. Default value is False.
+            
+        Returns
+        -------
+        transcript : str
+            The auto-generated transcript for the video.
+            
+        Example
+        -------
+            vid = Video(vid_file)
+            phrases = ['Barack Obama', 'Mitt Romney']
+            transcript = vid.transcribe(phrases)
         """
         # clients
         v_client = vi.VideoIntelligenceServiceClient()
@@ -251,39 +281,120 @@ class Video:
         
         self._transcript = transcript
         return self._transcript
+    
+    # method for computing frame features
+    def videofeats(self, no_mono=True, mono_thresh=5):
+        """Computes the Lab histogram and HOG features for the frames in the
+           video. These features are computed from a resized version of the 
+           video (320 x 240 resolution).
+
+        Parameters
+        ----------
+        no_mono : bool, optional
+            Boolean flag for specifying whether or not monochramatic frames are
+            ignored. If True, the corresponding entry in labhist_feat and 
+            hog_feat is an array of numpy.nan. The default is True.
+            
+        mono_thresh : float, optional
+            Threshold for declaring a frame as monochromatic. Frames with 
+            intensity standard deviation below this value are declared as 
+            monochromatic. The default is 5.
+            
+        Returns
+        -------
+        labhist_feat : array_like
+            The vectorized Lab color histogram for each frame.
+            
+        hog_feat : array_like
+            The histrogram of oriented gradients (HOG) feature for each frame.
+        """     
+        # resize video to something more manageable to prevent users from 
+        # accidentally overloading resources
+        with TemporaryDirectory() as temp:
+            # resized file name
+            rfpath = join(temp,'resized.mp4')
+            # resize video to 320 x 240
+            cmd = ffmpeg.input(self.file,
+                       ).output(rfpath,vf='scale=320:240',loglevel=16
+                       ).overwrite_output()
+            try:
+                cmd.run(capture_stderr=True)
+            except ffmpeg.Error as e:
+                raise Exception("resizing video failed with error %s:" %
+                                e.stderr.decode('utf-8'))
+                
+            # instantiate video object
+            v = Video(rfpath)
+
+            # frame indices
+            frame_inds = np.arange(v.frame_count)
+            n = len(frame_inds)
+    
+            # feature class instantiation
+            hog = HOG(v.resolution)
+            labhist = LabHistogram(v.resolution)
+    
+            labhist_feat = np.zeros((n,labhist.dimension),dtype=np.float32)
+            hog_feat = np.zeros((n,hog.dimension),dtype=float)
+            
+            # weight array for computing intensity
+            w_intensity = np.array([0.114,0.587,0.299])
+    
+            v.__stream = cv2.VideoCapture(v.file)
+            for i,frame_ind in enumerate(frame_inds):            
+                # read frame
+                flag,cf = v.__stream.read()
+                # error handling
+                if not flag:
+                    raise Exception('Error decoding frame %d' % (frame_ind+1))
+                    
+                # reject monochramatic frames (determined by intensity std)
+                if no_mono and (cf @ w_intensity).std() < mono_thresh:
+                    labhist_feat[i] = None
+                    hog_feat[i] = None
+                # compute features
+                else:
+                    labhist_feat[i] = labhist.compute(cf)
+                    hog_feat[i] = hog.compute(cf)
+    
+            # close stream
+            v.__release()
+
+        return (labhist_feat, hog_feat)
 
     # function for adaptively selecting keyframes via submodular optimization
-    def kf_adaptive(self,l1=1.5,l2=3.5,niter=25,dsf=1):
+    def summarize(self,l1=1.5,l2=3.5,niter=25):
         """Generates an array of keyframes using an adaptive keyframe selection
            algorithm.
 
-        Args:
-            l1 : float, optional
-                Penalty for uniqueness. Default value is 1.
-            l2 : float, optional
-                Penalty for summary length. Default value is 5
-            niter : int, optional
-                Number of iteration for optimization algorithm. Default value
-                is 25.
-            dsf : int, optional
-                Downsampling factor for thinning frames before running the
-                algorithm. Increasing this will improve runtime. Default is
-                value is 1 (no downsampling)
-        """
-        # prevents misuse
-        dsf = int(dsf)
-
+        Parameters
+        ----------
+        l1 : float, optional
+            Penalty for uniqueness. The default is 1.5.
+            
+        l2 : float, optional
+            Penalty for summary length. The default is 3.5.
+            
+        niter : int, optional
+            Number of iterations for optimization algorithm. The default is 25.
+        """                
         # get histogram and HOG features
-        feats_l, feats_h = self.feats(dsf=dsf)
+        lab, hog = self.videofeats()
+        
+        # video length before subsetting
+        n_res = len(lab)
+        
+        # subset down to non-monochromatic frames
+        index_sub = np.where(~np.isnan(lab).any(axis=1))[0]
+        lab = lab[index_sub]
+        hog = hog[index_sub]
 
-        # video properties
-        n = feats_h.shape[0]
+        # video length after subsetting
+        n = hog.shape[0]
 
         # pairwise comparisons of features
-        cfunc = partial(cv2.compareHist,method=cv2.HISTCMP_CHISQR_ALT)
-
-        w = cosine_similarity(feats_h)
-        d = 0.25 * pairwise_distances(feats_l,metric=cfunc,n_jobs=-1)
+        w = cosine_similarity(hog)
+        d = -0.5 * pairwise_kernels(lab,metric='additive_chi2',n_jobs=-1)
 
         # computes objective function value for a given index set
         def objective(kf_ind):
@@ -323,7 +434,7 @@ class Video:
                 # update maximum similarity between each i and Y \ uk
                 wY_max_t = wY_max.copy()
                 change_ind = w[uk] >= wY_max
-                if np.any(change_ind):
+                if change_ind.any():
                     wY_max_t[change_ind] = w[np.ix_(change_ind,Y_t)].max(axis=1)
 
                 # minimum distance from uk to X (uniqueness)
@@ -361,8 +472,9 @@ class Video:
                 best_kf_ind = X.copy()
                 best_obj = obj
 
-        # convert downsampled frame indices to original scale
-        return dsf * best_kf_ind
+        # rescale indices due to possible differences between resized frame
+        # count and original length
+        return (self.frame_count * index_sub[best_kf_ind]) // n_res
 
 class LabHistogram:
     def __init__(self,size,nbins=23):

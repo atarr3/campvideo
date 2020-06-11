@@ -83,12 +83,17 @@ class Audio(object):
         while 'magnitude' returns the one-sided magnitude spectrum (i.e, 
         the magnitude of the STFT). The default is 'psd'.
         
-    Returns
-    -------
-    out : Audio
-        An Audio object with attributes containing information about the
-        spectrogram and methods for computing the fingerprint and the audio, 
-        and for classifying the mood.
+    Attributes
+    ----------
+    freq : array_like
+        The frequency values at which the spectrogram was computed.
+        
+    time : array_like
+        The central time value of each frame in the spectrogram.
+        
+    spectrogram : array_like
+        The computed spectrogram, with time along the rows and frequency
+        along the columns.
     """
     def __init__(self,path,normalize=True,fs=5000,nfft=1024,wfunc=np.hamming,
                   wlen=None,overlap=0.5,pre_emph=0.,scaling='density',mode='psd'):
@@ -219,7 +224,7 @@ class Audio(object):
             and the second element corresponds to the uplifting class. 
         """
         # first compute feature
-        feat = self.audiofeat()
+        feat = np.atleast_2d(self.audiofeat())
         
         # classify
         if combine_negative:

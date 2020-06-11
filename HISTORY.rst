@@ -1,5 +1,13 @@
 History
 =======
+0.4.7 (06/10/2020)
+------------------
+
+- Updated help docstrings for audio, video, and image modules.
+- Added music mood classification to audio module
+- videofeats now filters out monochromatic frames.
+- Syntax cleanup in video.py
+
 0.4.6 (05/06/2020)
 ------------------
 
