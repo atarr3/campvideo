@@ -1,13 +1,14 @@
 import cv2
 import ffmpeg
+import io
 import numpy as np
 import os
 
 from functools import partial
-from google.cloud import storage
+# from google.cloud import storage
 from google.cloud import videointelligence as vi
 from os.path import join
-from sklearn.metrics import pairwise_distances, pairwise_kernels
+from sklearn.metrics import pairwise_kernels
 from sklearn.metrics.pairwise import cosine_similarity
 from tempfile import TemporaryDirectory
 
@@ -220,11 +221,11 @@ class Video:
             A list of strings to use as hints for transcribing the audio.
             Generally, this should be kept short and restricted to phrases
             that are not found in the dictionary (e.g. names, locations).
-            The default value is an empty list [] (no phrases).
+            The default is an empty list [] (no phrases).
              
         use_punct : bool, optional
             Boolean flag specifying whether or not to include punctuation in
-            the transcript. Default value is False.
+            the transcript. The default is False.
             
         Returns
         -------
@@ -237,14 +238,18 @@ class Video:
             phrases = ['Barack Obama', 'Mitt Romney']
             transcript = vid.transcribe(phrases)
         """
-        # clients
+        # check if user has GCP access
+        if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
+            raise KeyError('no API key found for Google Cloud Platform')
+            
+        # video client
         v_client = vi.VideoIntelligenceServiceClient()
-        s_client = storage.Client('adclass-1286')
+        # s_client = storage.Client('adclass-1286')
         
-        # upload file to bucket
-        bucket = s_client.get_bucket('video_files')
-        blob = bucket.blob(self.title)
-        blob.upload_from_filename(self.file)
+        # # upload file to bucket
+        # bucket = s_client.get_bucket('video_files')
+        # blob = bucket.blob(self.title)
+        # blob.upload_from_filename(self.file)
         
         # feature request
         features = [vi.enums.Feature.SPEECH_TRANSCRIPTION]
@@ -262,13 +267,16 @@ class Video:
         context = vi.types.VideoContext(speech_transcription_config=config)
         
         # construct annotation request and get results
-        uri = 'gs://video_files/' + blob.name
-        operation = v_client.annotate_video(uri,
+        # uri = 'gs://video_files/' + blob.name
+        with io.open(self.file, "rb") as movie:
+            input_content = movie.read()
+            
+        operation = v_client.annotate_video(input_content=input_content,
                                             features=features,
                                             video_context=context)
-        # timeout after 2 mins
+        # timeout after 3 mins
         try:
-            result = operation.result(timeout=120)
+            result = operation.result(timeout=180)
         finally:
             # always delete file
             blob.delete()

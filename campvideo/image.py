@@ -94,7 +94,7 @@ class Keyframes(object):
     
     # construct from video and keyframe indices
     @classmethod
-    def fromvid(cls,vid_path,kf_ind):
+    def fromvid(cls,vid_path,kf_ind=None):
         """Construct a Keyframes object from a video file and an array of 
         indices.
         
@@ -102,8 +102,9 @@ class Keyframes(object):
         ----------
         vid_path : str
             The path to the video file.
-        kf_ind : array_like
-            An array of keyframe indices.
+        kf_ind : array_like, optional
+            An array of keyframe indices. The default value is None, in which
+            case the keyframes are computed.
                 
         Returns
         -------
@@ -111,7 +112,14 @@ class Keyframes(object):
             A Keyframes object containing the images and corresponding 
             names determined by the filename and frame index.
         """
+        # create Video object
         vid = Video(vid_path)
+        
+        # compute keyframe indices if not specified
+        if kf_ind is None:
+            kf_ind = vid.summarize()
+        
+        # get keyframes
         ims = vid.frames(frame_inds=kf_ind)
         fname = splitext(basename(vid_path))[0]
         names = ["%s_%04d" % (fname,ind) for ind in kf_ind]
@@ -159,7 +167,7 @@ class Keyframes(object):
             raise Exception('Unable to encode image')
 
     # function for detecting and recognizing image text using Google Cloud API
-    def keyframes_text(self,bb_thr=0.035,bb_count=25,plot_images=False):
+    def image_text(self,bb_thr=0.035,bb_count=25,plot_images=False):
         """ Detect and recognize artificial or scene text in the set of 
         keyframes.
 
@@ -186,6 +194,10 @@ class Keyframes(object):
         """
         # checks of Google API has already been called for keyframes
         if not hasattr(self,'_texts'):
+            # check if user has GCP access
+            if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
+                raise KeyError('no API key found for Google Cloud Platform')
+                
             # flag for detected text
             keep = [True if self._has_text(im) else False for im in self.ims]
             self._keep = keep
@@ -284,7 +296,7 @@ class Keyframes(object):
         return out
     
     # function for detecting and recognizing faces in keyframes
-    def keyframes_faces(self,identity,dist_thr=0.6,return_dists=False):
+    def facerec(self,identity,dist_thr=0.55,return_dists=False):
         """ Detect and recognize faces in the set of keyframes that match the 
         face provided in the given input.
         
@@ -299,13 +311,15 @@ class Keyframes(object):
             face of the person to be recognized, and the face should be 
             front-facing and clear from any obstructions (e.g. hair, hats, 
             sunglasses, etc.).
+            
         dist_thr : float, optional
             Minimum distance to `identity` face encoding to declare a match
-            between the faces. The default value is 0.6.
+            between the faces. The default is 0.6.
+            
         return_dists : bool, optional
             Boolean flag for specifying whether or not to return the 
             distances between all detected faces in the keyframes and the
-            given identity face. The default value is False.
+            given identity face. The default is False.
                 
         Returns
         -------

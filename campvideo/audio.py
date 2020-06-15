@@ -1,5 +1,6 @@
 import ffmpeg
 import numpy as np
+import pandas as pd
 import pickle
 
 from os.path import basename,join,splitext
@@ -214,7 +215,7 @@ class Audio(object):
 
         Returns
         -------
-        mood : array_like
+        mood : pandas Series
             A 0-1 array of the classification results. The first element
             corresponds to whether or not the mood is classified as 
             ominous/tense, the second element corresponds to whether or not the
@@ -228,11 +229,16 @@ class Audio(object):
         
         # classify
         if combine_negative:
-            mood = np.array([m4.predict(feat), m2.predict(feat)])
+            mood = np.array([m4.predict(feat), m2.predict(feat)]).squeeze()
+            mood = pd.Series(data=mood, 
+                             index=['Negative', 'Positive'])
         else:
-            mood = np.array([m1.predict(feat), m2.predict(feat), m3.predict(feat)])
+            mood = np.array([m1.predict(feat), m2.predict(feat), 
+                             m3.predict(feat)]).squeeze()
+            mood = pd.Series(data=mood, 
+                             index=['Ominous/Tense', 'Uplifting', 'Sad/Sorrowful'])
         
-        return mood.squeeze()
+        return mood
 
     # function for computing audio fingerprint from spectrogram
     def fingerprint(self,reliability=True):

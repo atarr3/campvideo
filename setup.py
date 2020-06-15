@@ -27,7 +27,6 @@ setup(
     install_requires=[
 		"face_recognition",
 		"ffmpeg-python",
-		"google-cloud-storage",
 		"google-cloud-videointelligence",
 		"google-cloud-vision",
 		"numpy",
