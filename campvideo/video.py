@@ -275,11 +275,7 @@ class Video:
                                             features=features,
                                             video_context=context)
         # timeout after 3 mins
-        try:
-            result = operation.result(timeout=180)
-        finally:
-            # always delete file
-            blob.delete()
+        result = operation.result(timeout=180)
         
         # transcript
         results = result.annotation_results[0]

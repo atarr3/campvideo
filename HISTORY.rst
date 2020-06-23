@@ -1,5 +1,17 @@
 History
 =======
+0.4.9 (06/15/2020)
+------------------
+
+- More syntax updates
+- transcribe_vids now works with any directory of videos
+- Google Cloud Storage dependencies removed
+
+0.4.8 (06/12/2020)
+------------------
+
+- Various syntax updates
+
 0.4.7 (06/10/2020)
 ------------------
 
