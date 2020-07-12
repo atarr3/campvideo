@@ -93,6 +93,10 @@ def main():
     # check if models folder exists
     if not resource_exists('campvideo','models'):
         os.mkdir(join(MODULE_PATH,'models'))
+        
+        # add __init__.py to make it a module
+        with open(join(MODULE_PATH,'models/__init__.py'),'w'):
+            pass
     
     for model in MODELS:
         model.get()
