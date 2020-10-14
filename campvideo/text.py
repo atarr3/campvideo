@@ -237,14 +237,14 @@ class Transcript(object):
             True if the candidate's name is contained in the transcript, False
             if it is not.
         """
-        # return None if no opponent name available
+        # return None if no candidate name available
         if cand is None and self.cand is None: return None
-        # set opponent variable
+        # set candidate variable
         cand = cand if cand is not None else self.cand
         # get lemmatized tokens
         tokens = [token.lemma_.lower() for token in self.parsed]
 
-        # check for opponent mention
+        # check for candidate mention
         candment = cand.lower() in tokens
 
         return candment

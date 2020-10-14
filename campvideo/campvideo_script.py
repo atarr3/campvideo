@@ -72,6 +72,8 @@ def tokenize(text, ner=True, keep_names=True, keep_pron=False):
     else:
         return tokens
 
+from campvideo import Keyframes
+from campvideo import Video
 from campvideo import Transcript
 from timeit import default_timer
 from os.path import basename, exists, join, splitext
@@ -134,14 +136,16 @@ def main():
 
     # initialize container for data
     issues = issues.yt.to_list()
-    issues.extend(['sentiment', 'opp_mention', 'cand_mention', 'transcript', 'index']) # for colnames
+    issues.extend(['sentiment', 'opp_mention', 'cand_mention', 'transcript',
+                   'index', 'fc_lname', 'oc_lname', 'fc_fullname', 'oc_fullname', 'oc_party', 'fc_party', 'office',
+                   'election_year', 'incumbent']) # for colnames
     data = []
 
     # debug file
     with open(join(vid_dir, 'transcription_log.txt'), 'w') as lf:
         # transcribe
         for i, fpath in enumerate(fpaths):
-            print('Transcribing video %d of %d... ' % (i+1, n_vids), end='', flush=True)
+            print('Processing video %d of %d... ' % (i+1, n_vids), end='', flush=True)
             s = default_timer()
 
             # video name
@@ -149,13 +153,56 @@ def main():
 
             # transcribe video
             try:
-                opp_name = cands.loc[cands['file_name'] == cur_name, 'President_2'].item().split(' ')[1]
-                cand_name = cands.loc[cands['file_name'] == cur_name, 'President_1'].item().split(' ')[1]
-                t = Transcript.fromvid(fpath, cand = cand_name, opp = opp_name)
-                opp_ment = t.opp_mention(opp_name)
-                cand_ment = t.cand_mention(cand_name)
-                soc = {'sentiment': t.sentiment(), 'opp_mention': opp_ment, 'cand_mention': cand_ment, 'transcript': t.transcript, 'index': cur_name}
-                row = t.issue_mention(include_phrases=include_phrases, include_names = include_names)
+                # get cand (featured candidate) and opp (opponent candidate) attributes
+                opp_lname = cands.loc[cands['file_name'] == cur_name, 'lname_p2'].item()
+                cand_lname = cands.loc[cands['file_name'] == cur_name, 'lname'].item()
+                opp_nickname = cands.loc[cands['file_name'] == cur_name, 'nickname_2'].item()
+                cand_nickname = cands.loc[cands['file_name'] == cur_name, 'nickname_1'].item()
+                opp_fullname = cands.loc[cands['file_name'] == cur_name, 'President_2'].item()
+                cand_fullname = cands.loc[cands['file_name'] == cur_name, 'President_1'].item()
+                opp_party = cands.loc[cands['file_name'] == cur_name, 'Party_2'].item()
+                cand_party = cands.loc[cands['file_name'] == cur_name, 'Party_1'].item()
+                office = cands.loc[cands['file_name'] == cur_name, 'office_c'].item()
+                elect_year = cands.loc[cands['file_name'] == cur_name, 'election_year'].item()
+                incumbent = cands.loc[cands['file_name'] == cur_name, 'incumbent'].item()
+
+                # get video object
+                vid = Video(fpath)
+                print(1)
+
+                # make Keyframe object
+                kf = Keyframes.fromvid(fpath)
+                print(3)
+
+                # get image text
+                texts = kf.keyframes_text()
+                print(4)
+                # remove empty lists
+                texts = [item for item in texts if item != []]
+                print(5)
+
+                # transcribe video
+                t_str = vid.transcribe()
+                print(6)
+
+                # append image text to transcript
+                t = t_str + "IMTEXT: " + ' '.join(map(str, texts))
+                print(7)
+
+                # create Transcript object for content analysis
+                t = Transcript(t)
+                print(8)
+
+                # detect cand and opp mentions from transcript
+                opp_ment = t.opp_mention(opp_lname) | t.opp_mention(opp_nickname)
+                cand_ment = t.cand_mention(cand_lname) | t.cand_mention(cand_nickname)
+                soc = {'sentiment': t.sentiment(), 'opp_mention': opp_ment, 'cand_mention': cand_ment,
+                       'transcript': t.transcript, 'index': cur_name, 'fc_lname': cand_lname, 'oc_lname': opp_lname,
+                       'fc_fullname': cand_fullname, 'oc_fullname': opp_fullname,
+                       'fc_party': cand_party, 'oc_party': opp_party, 'office': office, 'election_year': elect_year,
+                       'incumbent': incumbent}
+                # detect issue mentions
+                row = t.issue_mention(include_phrases = include_phrases, include_names = include_names)
                 row = row.to_dict()
                 row.update(soc)
                 data.append(row)
