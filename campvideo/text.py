@@ -47,6 +47,13 @@ NLP = spacy.load('en_core_web_md')
 # regular expression for removing apostrophe's, but preserving those in names
 P = re.compile("([\w]{2})'.*$")
 
+# custom unpickler for complicated tokenize serialization issual
+class MyCustomUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == "__main__":
+            module = "campvideo.text"
+        return super().find_class(module, name)
+
 # function for checking if any name in NAMES is contained in input string
 def has_name(text):
     return any([name in text for name in NAMES])
@@ -104,7 +111,8 @@ def tokenize(text,ner=True,keep_names=True,keep_pron=False):
     
 # load sentiment model (must be done after tokenizer is defined)
 with open(SENT_PATH,'rb') as fh:
-    sent = pickle.load(fh)
+    unpickler = MyCustomUnpickler(fh)
+    sent = unpickler.load()
     
 # transcript class
 class Transcript(object):
