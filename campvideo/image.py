@@ -29,25 +29,25 @@ except cv2.error as e:
 class Keyframes(object):
     """Video keyframes class with methods for image text detection/recognition
     and face detections/recognition.
-        
+
     Parameters
     ----------
     ims : array_like
-        The list or numpy array of BGR images representing the 
+        The list or numpy array of BGR images representing the
         keyframes of a video
     names : array_like, optional
         An array of the corresponding names for each keyframe in `ims`.
         Generally, these names usually refer to the index of the frame
         in the original video.
-                
+
     Attributes
     ----------
     ims : list
         List of the images in BGR format.
-        
+
     ext : str
         Extension for image type, which is always set to '.png'.
-        
+
     resolution : tuple
         Resolution of the images in the keyframe set (H, W).
     """
@@ -64,18 +64,18 @@ class Keyframes(object):
     @classmethod
     def fromdir(cls,im_path):
         """Construct a Keyframes object from a directory of images.
-        
+
         Parameters
         ----------
         im_path : str
-            The path to the directory containing the keyframes, saved as 
+            The path to the directory containing the keyframes, saved as
             images. The `fromdir` method will attempt to read in all files
             saved in .bmp, .jpg, .jpeg, .png, .tiff, .tif format.
-                
+
         Returns
         -------
         out : Keyframes
-            A Keyframes object containing the images and corresponding 
+            A Keyframes object containing the images and corresponding
             names as listed in the image directory.
         """
         ims = []
@@ -85,19 +85,19 @@ class Keyframes(object):
                 # read image and get filetype
                 ims.append(imread(join(im_path,fname)))
                 names.append(splitext(fname)[0])
-                
+
         # check if ims is empty
         if len(ims) == 0:
             warnings.warn("No images found in directory `%s`" % im_path)
-        
+
         return cls(ims,names=names)
-    
+
     # construct from video and keyframe indices
     @classmethod
     def fromvid(cls,vid_path,kf_ind=None):
-        """Construct a Keyframes object from a video file and an array of 
+        """Construct a Keyframes object from a video file and an array of
         indices.
-        
+
         Parameters
         ----------
         vid_path : str
@@ -105,31 +105,31 @@ class Keyframes(object):
         kf_ind : array_like, optional
             An array of keyframe indices. The default value is None, in which
             case the keyframes are computed.
-                
+
         Returns
         -------
         out : Keyframes
-            A Keyframes object containing the images and corresponding 
+            A Keyframes object containing the images and corresponding
             names determined by the filename and frame index.
         """
         # create Video object
         vid = Video(vid_path)
-        
+
         # compute keyframe indices if not specified
         if kf_ind is None:
             kf_ind = vid.summarize()
-        
+
         # get keyframes
-        ims = vid.frames(frame_inds=kf_ind)
+        ims = vid.frames(frame_ind=kf_ind)
         fname = splitext(basename(vid_path))[0]
         names = ["%s_%04d" % (fname,ind) for ind in kf_ind]
-        
+
         return cls(ims,names=names)
 
     # show keyframes
     def show(self,wait=None):
         """ Displays the keyframes
-        
+
         Parameters
         ----------
         wait : int, optional
@@ -138,7 +138,7 @@ class Keyframes(object):
             the user to display the next keyframe.
         """
         if wait is None: wait = 0
-        
+
         for i,im in enumerate(self.ims):
             cv2.imshow("Keyframe %d" % (i+1),im)
             cv2.waitKey(wait)
@@ -147,12 +147,12 @@ class Keyframes(object):
     # function for converting specified image to a byte string
     def tobytes(self,im):
         """ Convert a given image to a byte-encoded string.
-        
+
         Parameters
         ----------
         im : array_like
             BGR numpy array representing the image to be byte-encoded.
-                
+
         Returns
         -------
         enc : str
@@ -168,7 +168,7 @@ class Keyframes(object):
 
     # function for detecting and recognizing image text using Google Cloud API
     def image_text(self,bb_thr=0.035,bb_count=25,plot_images=False):
-        """ Detect and recognize artificial or scene text in the set of 
+        """ Detect and recognize artificial or scene text in the set of
         keyframes.
 
         Parameters
@@ -177,38 +177,38 @@ class Keyframes(object):
             Minimum relative height of detected bounded for text to be
             kept. The default value is 0.035 (3.5% of image height).
         bb_count : int, optional
-            Maximum number of words to return for each frame. Keeps the 
-            `bb_count` largest (by height) bounding boxes. The default 
+            Maximum number of words to return for each frame. Keeps the
+            `bb_count` largest (by height) bounding boxes. The default
             value is 25.
         plot_images : bool, optional
             Flag for plotting images with detected text bounding boxes
             overlaid. The default value is False.
-                
+
         Returns
         -------
         out : list
             A list of the detected text in the set of keyframes. Each
-            element of `out` corresponds to each keyframe with detected 
-            text and is a list of at most `bb_count` largest (by height) 
-            words that have a relative height of at least `bb_thr`.         
+            element of `out` corresponds to each keyframe with detected
+            text and is a list of at most `bb_count` largest (by height)
+            words that have a relative height of at least `bb_thr`.
         """
         # checks of Google API has already been called for keyframes
         if not hasattr(self,'_texts'):
             # check if user has GCP access
             if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
                 raise KeyError('no API key found for Google Cloud Platform')
-                
+
             # flag for detected text
             keep = [True if self._has_text(im) else False for im in self.ims]
             self._keep = keep
-            
+
             # convert to byte strings and check if any image has text
             contents = [self.tobytes(im) for i,im in enumerate(self.ims)
                         if keep[i]]
-            if len(contents) == 0: 
+            if len(contents) == 0:
                 self._texts = []
                 return []
-            
+
             # build array of image annotation requests in batches of size 5
             n_batches = int(ceil(len(contents) / 5))
             features = [vision.types.Feature(type='TEXT_DETECTION')]
@@ -220,7 +220,7 @@ class Keyframes(object):
 
             # google cloud vision client
             client = vision.ImageAnnotatorClient()
-            
+
             # responses
             responses = [client.batch_annotate_images(batch,timeout=60).responses
                          for batch in requests]
@@ -250,7 +250,7 @@ class Keyframes(object):
                     dy = vertices[0][1] - vertices[3][1]
                     height = ceil(np.sqrt(dx ** 2 + dy ** 2))
                     rel_height = height / self.resolution[0]
-        
+
                     # filter bb based on relative height and total bb count
                     if rel_height >= bb_thr:
                         # insertion index that sorts based on asecending height
@@ -263,11 +263,11 @@ class Keyframes(object):
                     else:
                         bb = polylines(text_ims[frame],[vertices],
                                        True,(0,0,255))
-                # plot keyframe with bounding boxes        
+                # plot keyframe with bounding boxes
                 imshow("keyframe %d with bounding boxes" % text_ind[frame],bb)
                 cv2.waitKey(0)
                 cv2.destroyAllWindows()
-        
+
                 # keep `count` largest texts, in order as they appear in the image
                 out.append([texts[i].description for i in sorted(inds[-bb_count:])])
         # no plotting
@@ -280,51 +280,51 @@ class Keyframes(object):
                 for ind,text in enumerate(texts):
                     vertices = np.array([(vertex.x, vertex.y)
                                          for vertex in text.bounding_poly.vertices],
-                                        dtype=np.int32) 
+                                        dtype=np.int32)
                     dx = vertices[0][0] - vertices[3][0]
                     dy = vertices[0][1] - vertices[3][1]
                     height = ceil(np.sqrt(dx ** 2 + dy ** 2))
                     rel_height = height / self.resolution[0]
-        
+
                     if rel_height >= bb_thr:
                         ins = bisect(rel_heights,rel_height)
                         rel_heights.insert(ins,rel_height)
                         inds.insert(ins,ind)
-        
+
                 out.append([texts[i].description for i in sorted(inds[-bb_count:])])
-            
+
         return out
-    
+
     # function for detecting and recognizing faces in keyframes
     def facerec(self,identity,dist_thr=0.55,return_dists=False):
-        """ Detect and recognize faces in the set of keyframes that match the 
+        """ Detect and recognize faces in the set of keyframes that match the
         face provided in the given input.
-        
+
         Parameters
         ----------
         identity : str or array_like
-            If a string, path to the image containing the face of the 
+            If a string, path to the image containing the face of the
             person to be recognized in the keyframes. If an array, the
             face encoding representing the identity.
-            
-            When specifying an image, the image should contain only the 
-            face of the person to be recognized, and the face should be 
-            front-facing and clear from any obstructions (e.g. hair, hats, 
+
+            When specifying an image, the image should contain only the
+            face of the person to be recognized, and the face should be
+            front-facing and clear from any obstructions (e.g. hair, hats,
             sunglasses, etc.).
-            
+
         dist_thr : float, optional
             Minimum distance to `identity` face encoding to declare a match
             between the faces. The default is 0.6.
-            
+
         return_dists : bool, optional
-            Boolean flag for specifying whether or not to return the 
+            Boolean flag for specifying whether or not to return the
             distances between all detected faces in the keyframes and the
             given identity face. The default is False.
-                
+
         Returns
         -------
         dists : array_like
-            An array of distances between the input face encoding and the 
+            An array of distances between the input face encoding and the
             encodings corresponding to faces detected in the keyframes.
             Only returned when `return_dists` is True, otherwise None is
             returned.
@@ -340,7 +340,7 @@ class Keyframes(object):
         else:
             assert len(identity) == 128, 'invalid encoding passed'
             known_enc = identity
-            
+
         # calculate all encodings
         if not hasattr(self,'_unkn_encs'):
             self._unkn_encs = [enc for im in self.ims
@@ -348,9 +348,9 @@ class Keyframes(object):
                                        # convert to RGB
                                        cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
                                        )]
-        
+
         dists = face_recognition.face_distance(self._unkn_encs,known_enc)
-        
+
         # return distances if specified, else return if any encoding is below
         # specified threshold
         if return_dists:
@@ -365,7 +365,7 @@ class Keyframes(object):
         # resize image to nearest dimensions that are a multiple of 32
         h,w = self.resolution
         # resize dimensions, detection is somewhat sensitive to this
-        # seems like this must be constant across calls unless the model is 
+        # seems like this must be constant across calls unless the model is
         # reloaded for each image... will have to look into this
         new_w = 480
         # nearest (in aspect ratio) height that is a multiple of 32
