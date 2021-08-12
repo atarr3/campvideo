@@ -2,20 +2,26 @@ import cv2
 import face_recognition
 import numpy as np
 import os
+import pandas as pd
 import warnings
 
 from bisect import bisect
 from campvideo import Video
 from cv2 import imread,polylines,imshow
-from google.cloud import vision
+from google.cloud import vision_v1 as vision
 from math import ceil
 from os.path import basename,exists,join,splitext
 from pkg_resources import resource_filename
 
 # text detection model path
 MODEL_PATH = resource_filename('campvideo','models/frozen_east_text_detection.pb')
+
 # compatible image types
 IMAGE_EXTS = ('.bmp','.jpg','.jpeg','.png','.tiff','.tif')
+
+# issue vocabulary list
+VOCAB_PATH = resource_filename('campvideo','data/issuenames.csv')
+VOCAB = pd.read_csv(VOCAB_PATH)
 
 # load neural net for text bounding box detection
 try:
@@ -51,7 +57,7 @@ class Keyframes(object):
     resolution : tuple
         Resolution of the images in the keyframe set (H, W).
     """
-    def __init__(self,ims,names=None):
+    def __init__(self, ims,names=None):
         # list of BGR images
         self.ims = list(ims)
         # extension for image type, always set to .png'
@@ -62,7 +68,7 @@ class Keyframes(object):
 
     # construct from directory of images
     @classmethod
-    def fromdir(cls,im_path):
+    def fromdir(cls, im_path):
         """Construct a Keyframes object from a directory of images.
 
         Parameters
@@ -94,7 +100,7 @@ class Keyframes(object):
 
     # construct from video and keyframe indices
     @classmethod
-    def fromvid(cls,vid_path,kf_ind=None):
+    def fromvid(cls, vid_path, kf_ind=None):
         """Construct a Keyframes object from a video file and an array of
         indices.
 
@@ -127,7 +133,7 @@ class Keyframes(object):
         return cls(ims,names=names)
 
     # show keyframes
-    def show(self,wait=None):
+    def show(self, wait=None):
         """ Displays the keyframes
 
         Parameters
@@ -145,7 +151,7 @@ class Keyframes(object):
             cv2.destroyAllWindows()
 
     # function for converting specified image to a byte string
-    def tobytes(self,im):
+    def tobytes(self, im):
         """ Convert a given image to a byte-encoded string.
 
         Parameters
@@ -167,7 +173,7 @@ class Keyframes(object):
             raise Exception('Unable to encode image')
 
     # function for detecting and recognizing image text using Google Cloud API
-    def image_text(self,bb_thr=0.035,bb_count=25,plot_images=False):
+    def image_text(self, bb_thr=0.035, bb_count=25, plot_images=False):
         """ Detect and recognize artificial or scene text in the set of
         keyframes.
 
@@ -186,7 +192,7 @@ class Keyframes(object):
 
         Returns
         -------
-        out : list
+        out : list of lists
             A list of the detected text in the set of keyframes. Each
             element of `out` corresponds to each keyframe with detected
             text and is a list of at most `bb_count` largest (by height)
@@ -211,7 +217,7 @@ class Keyframes(object):
 
             # build array of image annotation requests in batches of size 5
             n_batches = int(ceil(len(contents) / 5))
-            features = [vision.types.Feature(type='TEXT_DETECTION')]
+            features = [vision.types.Feature(type_='TEXT_DETECTION')]
             requests = [[vision.types.AnnotateImageRequest(
                                 image=vision.types.Image(content=content),
                                 features=features)
@@ -222,7 +228,7 @@ class Keyframes(object):
             client = vision.ImageAnnotatorClient()
 
             # responses
-            responses = [client.batch_annotate_images(batch,timeout=60).responses
+            responses = [client.batch_annotate_images(requests=batch,timeout=60).responses
                          for batch in requests]
 
             # store results for future use
@@ -259,10 +265,10 @@ class Keyframes(object):
                         rel_heights.insert(ins,rel_height)
                         inds.insert(ins,ind)
                         bb = polylines(text_ims[frame],[vertices],
-                                       True,(36,255,12))
+                                       True,(36,255,12)) # green
                     else:
                         bb = polylines(text_ims[frame],[vertices],
-                                       True,(0,0,255))
+                                       True,(0,0,255)) # red
                 # plot keyframe with bounding boxes
                 imshow("keyframe %d with bounding boxes" % text_ind[frame],bb)
                 cv2.waitKey(0)
@@ -294,9 +300,9 @@ class Keyframes(object):
                 out.append([texts[i].description for i in sorted(inds[-bb_count:])])
 
         return out
-
+        
     # function for detecting and recognizing faces in keyframes
-    def facerec(self,identity,dist_thr=0.55,return_dists=False):
+    def facerec(self, identity, dist_thr=0.6, return_dists=False):
         """ Detect and recognize faces in the set of keyframes that match the
         face provided in the given input.
 
@@ -323,11 +329,10 @@ class Keyframes(object):
 
         Returns
         -------
-        dists : array_like
+        dists : array_like, optional
             An array of distances between the input face encoding and the
             encodings corresponding to faces detected in the keyframes.
-            Only returned when `return_dists` is True, otherwise None is
-            returned.
+            Only returned when `return_dists` is True.
         out : bool
             A Boolean flag specifying whether or not the face in the input
             image matches any of the faces detected in the keyframes.
@@ -356,12 +361,12 @@ class Keyframes(object):
         if return_dists:
             return (dists, np.any(dists <= dist_thr))
         else:
-            return (None, np.any(dists <= dist_thr))
+            return np.any(dists <= dist_thr)
 
     # function for checking if text is contained in the image using the EAST
     # text detector from cv2. The purpose of this function is to avoid making
     # API calls to the GCP when no text is present in the image.
-    def _has_text(self,im,ar=16/9,score_thr=0.5):
+    def _has_text(self, im, ar=16/9, score_thr=0.5):
         # resize image to nearest dimensions that are a multiple of 32
         h,w = self.resolution
         # resize dimensions, detection is somewhat sensitive to this

@@ -150,7 +150,7 @@ class Audio(object):
         
     # create feature vector from spectrogram for use in mood classification and
     # sentiment analysis
-    def audiofeat(self,feature_set='best'):
+    def audiofeat(self, feature_set='best'):
         """Computes an audio feature based on the spectrogram.
 
         Parameters
@@ -201,7 +201,7 @@ class Audio(object):
             return np.hstack((feat_st,feat_lt))
         
     # function for classifying the music mood of the input file
-    def musicmood(self,combine_negative=False):
+    def musicmood(self, combine_negative=False):
         """Classifies the mood the audio file as ominous/tense, uplifting, and
         sad/sorrowful. Each mood is classified separately from one another, so
         it is possible for the input file to be classified as all three.
@@ -224,7 +224,7 @@ class Audio(object):
             True, the first element corresponds to the combined negative class,
             and the second element corresponds to the uplifting class. 
         """
-        # first compute feature
+        # first compute feature (pre-trained models use `best` feature set)
         feat = np.atleast_2d(self.audiofeat())
         
         # classify

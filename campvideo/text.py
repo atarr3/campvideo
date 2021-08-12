@@ -44,7 +44,7 @@ VOCAB = pd.read_csv(VOCAB_PATH)
 # spacy NLP parser
 NLP = spacy.load('en_core_web_md')
 
-# regular expression for removing apostrophe's, but preserving those in names
+# regular expression for removing apostrophes, but preserving those in names
 P = re.compile("([\w]{2})'.*$")
 
 # custom unpickler for complicated tokenize serialization issual
@@ -115,8 +115,8 @@ with open(SENT_PATH,'rb') as fh:
     sent = unpickler.load()
     
 # transcript class
-class Transcript(object):
-    """Video transcript class with methods for sentiment analysis, issue
+class Text(object):
+    """Video text class with methods for sentiment analysis, issue
     mention detection, and candidate/opponent mention detections.
 
     Parameters
@@ -124,21 +124,21 @@ class Transcript(object):
     transcript : str
         The raw transcript corresponding to the video.
 
-    parsed : spacy Doc
-        The parsed transcript according to spacy.
-
     cand : str, optional
         The last name of the candidate for the video from which the transcript
         was extracted. The default is None.
 
     opp : str, optional
-        The last name of the candidate for the video from which the transcript
+        The last name of the opponent for the video from which the transcript
         was extracted. The default is None.
 
     Attributes
     ----------
     transcript: str
         The raw transcript used to construct the class.
+        
+    parsed : spacy Doc
+        The parsed transcript according to spacy.
     """
 
     # constructor
@@ -208,7 +208,7 @@ class Transcript(object):
         opp : str, optional
             The last name of the opponent for the video from which the
             transcript was extracted. The default is the name passed with the
-            constructor. If no name was specified, the function returns None.
+            constructor. If no name was specified, the function returns False.
 
         Returns
         -------
@@ -216,12 +216,12 @@ class Transcript(object):
             True if the opponent's name is contained in the transcript, False
             if it is not.
         """
-        # return None if no opponent name available
-        if opp is None and self.opp is None: return None
+        # return False if no opponent name available
+        if opp is None and self.opp is None: return False
         # set opponent variable
         opp = opp if opp is not None else self.opp
-        # get lemmatized tokens
-        tokens = [token.lemma_.lower() for token in self.parsed]
+        # get tokens (no lemmatization)
+        tokens = [token.lower_ for token in self.parsed]
 
         # check for opponent mention
         oppment = opp.lower() in tokens
@@ -250,7 +250,7 @@ class Transcript(object):
         # set candidate variable
         cand = cand if cand is not None else self.cand
         # get lemmatized tokens
-        tokens = [token.lemma_.lower() for token in self.parsed]
+        tokens = [token.lower_ for token in self.parsed]
 
         # check for candidate mention
         candment = cand.lower() in tokens
@@ -302,7 +302,7 @@ class Transcript(object):
         keep.reset_index(drop=True, inplace=True)
 
         # iterate through rows and check issue mentions
-        out = pd.Series(index=keep.yt, dtype=int)
+        out = pd.Series(index=keep.desc, dtype=int)
         for i, desc, _, _, _, _, word, noword in keep.itertuples():
             # word count (words that correspond to an issue)
             words = word.split('|')

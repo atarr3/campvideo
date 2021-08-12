@@ -93,7 +93,7 @@ def main():
 			# get image text for each image
             print('\tDetecting text... ',file=fh,end='',flush=True)
             try:
-                texts = kf.keyframes_text()
+                texts = kf.image_text()
                 # remove empty lists
                 texts = [item for item in texts if item != []]
             except Exception as e:

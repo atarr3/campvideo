@@ -32,7 +32,7 @@ def main():
 
     fpaths_summ = [join(root,fname) for root,_,fnames in os.walk(summ_dir)
                                         for fname in fnames
-                                            if fname.endswith('.txt')]
+                                            if fname == 'keyframes.txt']
     fpaths_summ = sorted(fpaths_summ,key=lambda x: basename(dirname(x)).lower())
 
     # get face encodings for videos
@@ -69,7 +69,7 @@ def main():
         print("Done in %.1fs" % (default_timer()-s))
 
     # save in video directory
-    pickle.dump(out,open(join(vid_dir,'face_encodings.pkl'),'wb'))
+    pickle.dump(out, open(join(vid_dir,'face_encodings.pkl'), 'wb'))
 
 if __name__ == '__main__':
     main()
