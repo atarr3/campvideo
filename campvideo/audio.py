@@ -1,9 +1,9 @@
 import ffmpeg
+import joblib
 import numpy as np
 import pandas as pd
-import pickle
 
-from os.path import basename,join,splitext
+from os.path import abspath, basename, join, splitext
 from pkg_resources import resource_filename
 from scipy.fftpack import dct
 from scipy.io.wavfile import read
@@ -11,23 +11,23 @@ from scipy.signal import lfilter, spectrogram
 from tempfile import TemporaryDirectory
 
 # mood classification models
-M1_PATH = resource_filename('campvideo','models/music1.pkl')
-M2_PATH = resource_filename('campvideo','models/music2.pkl')
-M3_PATH = resource_filename('campvideo','models/music3.pkl')
-M4_PATH = resource_filename('campvideo','models/music4.pkl')
+M1_PATH = resource_filename('campvideo','models/music1.joblib')
+M2_PATH = resource_filename('campvideo','models/music2.joblib')
+M3_PATH = resource_filename('campvideo','models/music3.joblib')
+M4_PATH = resource_filename('campvideo','models/music4.joblib')
 
 # load in with module
 with open(M1_PATH,'rb') as fh:
-    m1 = pickle.load(fh)
+    m1 = joblib.load(fh)
 
 with open(M2_PATH,'rb') as fh:
-    m2 = pickle.load(fh)
+    m2 = joblib.load(fh)
     
 with open(M3_PATH,'rb') as fh:
-    m3 = pickle.load(fh)
+    m3 = joblib.load(fh)
     
 with open(M4_PATH,'rb') as fh:
-    m4 = pickle.load(fh)
+    m4 = joblib.load(fh)
     
 # audio class for computing spectrogram and spectral feats.
 class Audio(object):
@@ -96,12 +96,13 @@ class Audio(object):
         The computed spectrogram, with time along the rows and frequency
         along the columns.
     """
-    def __init__(self,path,normalize=True,fs=22050,nfft=1024,wfunc=np.hamming,
-                  wlen=None,overlap=0.5,pre_emph=0.95,scaling='density',mode='psd'):
+    def __init__(self, path, normalize=True, fs=22050, nfft=1024, wfunc=np.hamming,
+                  wlen=None, overlap=0.5, pre_emph=0.95, scaling='density', mode='psd'):
         # set parameters
-        self.path = path
-        self.fs,self.nfft = fs,nfft
-        self.scaling,self.mode = scaling,mode
+        self._file = abspath(path)
+        self._title = splitext(basename(path))[0]
+        self._fs, self._nfft = fs, nfft
+        self._scaling, self._mode = scaling, mode
 
         # window length defaults to nfft if not specified
         wlen = nfft if wlen is None else wlen
@@ -117,7 +118,7 @@ class Audio(object):
             if path.endswith('.wav'):
                 aud_path = path
             else:
-                aud_path = vid2wav(path,out_dir=temp,fs=fs)
+                aud_path = vid2wav(path, out_dir=temp, fs=fs)
             # read in
             _,y = read(aud_path)
 
@@ -125,7 +126,7 @@ class Audio(object):
         if normalize: y = y.astype(np.float16) / (2**15)
 
         # apply pre-emphasis filter to entire signal
-        if pre_emph > 0: y = lfilter([1,-pre_emph],1,y)
+        if pre_emph > 0: y = lfilter([1, -pre_emph], 1, y)
 
         # compute window function
         window = wfunc(nfft) if wlen is None else wfunc(wlen)
@@ -134,19 +135,48 @@ class Audio(object):
         self._dens2spect_scale = fs * (window * window).sum() / window.sum() ** 2
 
         # compute one-sided spectrogram
-        f,t,S = spectrogram(y,fs=fs,window=window,noverlap=noverlap,
-                            nfft=nfft,return_onesided=True,scaling=scaling,
+        f,t,S = spectrogram(y, fs=fs, window=window, noverlap=noverlap,
+                            nfft=nfft, return_onesided=True, scaling=scaling,
                             mode=mode)
 
         # double frequencies for stft mode (not sure why it's not done already)
         if mode != 'psd':
-            if self.nfft % 2:
+            if self._nfft % 2:
                 S[1:,] *= 2
             else:
                 S[1:-1,] *= 2
 
         # set attributes, spectrogram is time x freq
-        self.freq,self.time,self.spectrogram = f,t,S.T
+        self._freq, self._time, self._spectrogram = f, t, S.T
+        
+    # attribute reader functions
+    @property
+    def file(self):
+        return self._file
+    @property
+    def title(self):
+        return self._title
+    @property
+    def fs(self):
+        return self._fs
+    @property
+    def nfft(self):
+        return self._nfft
+    @property
+    def scaling(self):
+        return self._scaling
+    @property
+    def mode(self):
+        return self._mode
+    @property
+    def freq(self):
+        return self._freq
+    @property
+    def time(self):
+        return self._time
+    @property
+    def spectrogram(self):
+        return self._spectrogram
         
     # create feature vector from spectrogram for use in mood classification and
     # sentiment analysis
@@ -178,9 +208,9 @@ class Audio(object):
         osc,sfm_scm = self._osfeats()
 
         feat_st = np.hstack((ssd,
-                             mfcc.mean(0),mfcc.std(0),
-                             osc.mean(0),osc.std(0),
-                             sfm_scm.mean(0),sfm_scm.std(0)
+                             mfcc.mean(0), mfcc.std(0),
+                             osc.mean(0), osc.std(0),
+                             sfm_scm.mean(0), sfm_scm.std(0)
                            ))
 
         # long-term modulation spectral features
@@ -196,9 +226,9 @@ class Audio(object):
         if feature_set != 'no-joint':
             joint_feats = self._joint_feats()
 
-            return np.hstack((feat_st,feat_lt,joint_feats))
+            return np.hstack((feat_st, feat_lt, joint_feats))
         else:
-            return np.hstack((feat_st,feat_lt))
+            return np.hstack((feat_st, feat_lt))
         
     # function for classifying the music mood of the input file
     def musicmood(self, combine_negative=False):
@@ -230,13 +260,13 @@ class Audio(object):
         # classify
         if combine_negative:
             mood = np.array([m4.predict(feat), m2.predict(feat)]).squeeze()
-            mood = pd.Series(data=mood, 
-                             index=['Negative', 'Positive'])
+            mood = pd.DataFrame(data=[mood], index=[self.title],
+                                columns=['Negative', 'Positive'])
         else:
             mood = np.array([m1.predict(feat), m2.predict(feat), 
                              m3.predict(feat)]).squeeze()
-            mood = pd.Series(data=mood, 
-                             index=['Ominous/Tense', 'Uplifting', 'Sad/Sorrowful'])
+            mood = pd.DataFrame(data=[mood], index=[self.title],
+                                columns=['music1', 'music2', 'music3'])
         
         return mood
 

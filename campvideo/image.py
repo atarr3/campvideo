@@ -1,35 +1,52 @@
+import campvideo.video as video
 import cv2
+import dlib
 import face_recognition
 import numpy as np
 import os
-import pandas as pd
 import warnings
 
 from bisect import bisect
-from campvideo import Video
 from cv2 import imread,polylines,imshow
+from face_recognition import face_encodings, face_locations
 from google.cloud import vision_v1 as vision
 from math import ceil
-from os.path import basename,exists,join,splitext
+from os.path import exists, join
 from pkg_resources import resource_filename
 
 # text detection model path
-MODEL_PATH = resource_filename('campvideo','models/frozen_east_text_detection.pb')
+_MODEL_PATH = resource_filename('campvideo','models/frozen_east_text_detection.pb')
 
 # compatible image types
-IMAGE_EXTS = ('.bmp','.jpg','.jpeg','.png','.tiff','.tif')
+_IMAGE_EXTS = ('.bmp','.jpg','.jpeg','.png','.tiff','.tif')
 
-# issue vocabulary list
-VOCAB_PATH = resource_filename('campvideo','data/issuenames.csv')
-VOCAB = pd.read_csv(VOCAB_PATH)
+# Obama face encoding
+with open(resource_filename('campvideo','data/obama_enc.npy'), 'rb') as fh:
+    OBAMA_ENC = np.load(fh)
 
 # load neural net for text bounding box detection
 try:
-    text_net = cv2.dnn.readNet(MODEL_PATH)
+    _TEXT_NET = cv2.dnn.readNet(_MODEL_PATH)
 except cv2.error as e:
     # only raise if file exists, otherwise raise when attempting to detect text
-    if exists(MODEL_PATH):
+    if exists(_MODEL_PATH):
         raise e
+        
+# function for resizing image while preserving aspect-ratio
+def resize_im(im, max_dim=1280):
+    h, w,_ = im.shape
+    # don't resize if image is below the maximum dimension
+    if max(h, w) <= max_dim: 
+        return im
+    
+    # compute aspect-ratio
+    ar = w / h
+    # scale to max dim
+    new_w = max_dim if w >= h else int(max_dim * ar)
+    new_h = max_dim if w < h else int(max_dim / ar)
+    
+    # return resized image
+    return cv2.resize(im, (new_w,new_h))
 
 # image class for text and face recognition on video keyframes
 class Keyframes(object):
@@ -41,10 +58,12 @@ class Keyframes(object):
     ims : array_like
         The list or numpy array of BGR images representing the
         keyframes of a video
-    names : array_like, optional
-        An array of the corresponding names for each keyframe in `ims`.
-        Generally, these names usually refer to the index of the frame
-        in the original video.
+        
+        
+    max_dim : int, optional     
+        If specified, images in the collection of keyframes will be resized 
+        such that the maximum width of image is `max_dim`, preserving the 
+        native aspect ratio. By default, no resizing is performed.
 
     Attributes
     ----------
@@ -57,18 +76,18 @@ class Keyframes(object):
     resolution : tuple
         Resolution of the images in the keyframe set (H, W).
     """
-    def __init__(self, ims,names=None):
+    def __init__(self, ims, max_dim=None):
         # list of BGR images
-        self.ims = list(ims)
+        self.ims = [resize_im(im, max_dim) if max_dim is not None else im 
+                                           for im in ims]
         # extension for image type, always set to .png'
         self.ext = '.png'
         # image array properties
-        if names is not None: self.names = names
         self.resolution = ims[0].shape[:2]
 
     # construct from directory of images
     @classmethod
-    def fromdir(cls, im_path):
+    def fromdir(cls, im_path, max_dim=None):
         """Construct a Keyframes object from a directory of images.
 
         Parameters
@@ -77,6 +96,11 @@ class Keyframes(object):
             The path to the directory containing the keyframes, saved as
             images. The `fromdir` method will attempt to read in all files
             saved in .bmp, .jpg, .jpeg, .png, .tiff, .tif format.
+            
+        max_dim : int, optional     
+            If specified, images in the collection of keyframes will be resized 
+            such that the maximum width of image is `max_dim`, preserving the 
+            native aspect ratio. By default, no resizing is performed.
 
         Returns
         -------
@@ -85,22 +109,20 @@ class Keyframes(object):
             names as listed in the image directory.
         """
         ims = []
-        names = []
         for fname in os.listdir(im_path):
-            if fname.endswith(IMAGE_EXTS):
+            if fname.endswith(_IMAGE_EXTS):
                 # read image and get filetype
                 ims.append(imread(join(im_path,fname)))
-                names.append(splitext(fname)[0])
 
         # check if ims is empty
         if len(ims) == 0:
             warnings.warn("No images found in directory `%s`" % im_path)
 
-        return cls(ims,names=names)
+        return cls(ims, max_dim=max_dim)
 
     # construct from video and keyframe indices
     @classmethod
-    def fromvid(cls, vid_path, kf_ind=None):
+    def fromvid(cls, vid_path, kf_ind=None, max_dim=None):
         """Construct a Keyframes object from a video file and an array of
         indices.
 
@@ -108,9 +130,15 @@ class Keyframes(object):
         ----------
         vid_path : str
             The path to the video file.
+            
         kf_ind : array_like, optional
             An array of keyframe indices. The default value is None, in which
             case the keyframes are computed.
+            
+        max_dim : int, optional     
+            If specified, images in the collection of keyframes will be resized 
+            such that the maximum width of image is `max_dim`, preserving the 
+            native aspect ratio. By default, no resizing is performed.
 
         Returns
         -------
@@ -119,7 +147,7 @@ class Keyframes(object):
             names determined by the filename and frame index.
         """
         # create Video object
-        vid = Video(vid_path)
+        vid = video.Video(vid_path)
 
         # compute keyframe indices if not specified
         if kf_ind is None:
@@ -127,10 +155,8 @@ class Keyframes(object):
 
         # get keyframes
         ims = vid.frames(frame_ind=kf_ind)
-        fname = splitext(basename(vid_path))[0]
-        names = ["%s_%04d" % (fname,ind) for ind in kf_ind]
 
-        return cls(ims,names=names)
+        return cls(ims, max_dim=max_dim)
 
     # show keyframes
     def show(self, wait=None):
@@ -146,7 +172,7 @@ class Keyframes(object):
         if wait is None: wait = 0
 
         for i,im in enumerate(self.ims):
-            cv2.imshow("Keyframe %d" % (i+1),im)
+            cv2.imshow("Keyframe %d" % (i+1), im)
             cv2.waitKey(wait)
             cv2.destroyAllWindows()
 
@@ -196,7 +222,9 @@ class Keyframes(object):
             A list of the detected text in the set of keyframes. Each
             element of `out` corresponds to each keyframe with detected
             text and is a list of at most `bb_count` largest (by height)
-            words that have a relative height of at least `bb_thr`.
+            words that have a relative height of at least `bb_thr`. Note
+            that an empty list is returned for keyframes with no detected 
+            text.
         """
         # checks of Google API has already been called for keyframes
         if not hasattr(self,'_texts'):
@@ -241,68 +269,72 @@ class Keyframes(object):
             # deep copy of images
             text_ims = [im.copy() for flag,im in zip(self._keep,self.ims) if flag]
 
-            # filtered list of text
-            out = []
-            for frame,all_texts in enumerate(self._texts):
-                texts = all_texts[1:] # first entry is all text in the image
-                rel_heights = []
-                inds = []
-                for ind,text in enumerate(texts):
-                    vertices = np.array([(vertex.x, vertex.y)
-                                         for vertex in text.bounding_poly.vertices],
-                                        dtype=np.int32) # polylines requires int32
-                    # get rotated bb height (assumes rotation is < 90 degrees)
-                    dx = vertices[0][0] - vertices[3][0]
-                    dy = vertices[0][1] - vertices[3][1]
-                    height = ceil(np.sqrt(dx ** 2 + dy ** 2))
-                    rel_height = height / self.resolution[0]
+        # filtered list of text
+        out = []
+        for frame, all_texts in enumerate(self._texts):
+            texts = all_texts[1:] # first entry is all text in the image
+            rel_heights = []
+            inds = []
+            for ind, text in enumerate(texts):
+                vertices = np.array([(vertex.x, vertex.y)
+                                     for vertex in text.bounding_poly.vertices],
+                                    dtype=np.int32) # polylines requires int32
+                # get rotated bb height (assumes rotation is < 90 degrees)
+                dx = vertices[0][0] - vertices[3][0]
+                dy = vertices[0][1] - vertices[3][1]
+                height = ceil(np.sqrt(dx ** 2 + dy ** 2))
+                rel_height = height / self.resolution[0]
 
-                    # filter bb based on relative height and total bb count
-                    if rel_height >= bb_thr:
-                        # insertion index that sorts based on asecending height
-                        ins = bisect(rel_heights,rel_height)
-                        # sorted heights and corresponding index in texts
-                        rel_heights.insert(ins,rel_height)
-                        inds.insert(ins,ind)
-                        bb = polylines(text_ims[frame],[vertices],
-                                       True,(36,255,12)) # green
-                    else:
-                        bb = polylines(text_ims[frame],[vertices],
-                                       True,(0,0,255)) # red
-                # plot keyframe with bounding boxes
-                imshow("keyframe %d with bounding boxes" % text_ind[frame],bb)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
+                # filter bb based on relative height and total bb count
+                if rel_height >= bb_thr:
+                    # insertion index that sorts based on asecending height
+                    ins = bisect(rel_heights, rel_height)
+                    # sorted heights and corresponding index in texts
+                    rel_heights.insert(ins, rel_height)
+                    inds.insert(ins, ind)
+                    # bb = polylines(text_ims[frame], [vertices],
+                    #                True,(36,255,12)) # green
+                # else:
+                #     bb = polylines(text_ims[frame], [vertices],
+                #                    True, (0,0,255)) # red
+                if plot_images:
+                    color = (36,255,12) if rel_height >= bb_thr else (0,0,255)
+                    # plot keyframe with bounding boxes
+                    bb = polylines(text_ims[frame], [vertices], True, color)
+                    imshow("keyframe %d with bounding boxes" % text_ind[frame], bb)
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
 
-                # keep `count` largest texts, in order as they appear in the image
-                out.append([texts[i].description for i in sorted(inds[-bb_count:])])
+            # keep `bb_count` largest texts, in order as they appear in the image
+            out.append([texts[i].description for i in sorted(inds[-bb_count:])])
         # no plotting
-        else:
-            out = []
-            for frame,all_texts in enumerate(self._texts):
-                texts = all_texts[1:] # first entry is all text in the image
-                rel_heights = []
-                inds = []
-                for ind,text in enumerate(texts):
-                    vertices = np.array([(vertex.x, vertex.y)
-                                         for vertex in text.bounding_poly.vertices],
-                                        dtype=np.int32)
-                    dx = vertices[0][0] - vertices[3][0]
-                    dy = vertices[0][1] - vertices[3][1]
-                    height = ceil(np.sqrt(dx ** 2 + dy ** 2))
-                    rel_height = height / self.resolution[0]
+        # else:
+        #     out = []
+        #     for frame,all_texts in enumerate(self._texts):
+        #         texts = all_texts[1:] # first entry is all text in the image
+        #         rel_heights = []
+        #         inds = []
+        #         for ind,text in enumerate(texts):
+        #             vertices = np.array([(vertex.x, vertex.y)
+        #                                  for vertex in text.bounding_poly.vertices],
+        #                                 dtype=np.int32)
+        #             dx = vertices[0][0] - vertices[3][0]
+        #             dy = vertices[0][1] - vertices[3][1]
+        #             height = ceil(np.sqrt(dx ** 2 + dy ** 2))
+        #             rel_height = height / self.resolution[0]
 
-                    if rel_height >= bb_thr:
-                        ins = bisect(rel_heights,rel_height)
-                        rel_heights.insert(ins,rel_height)
-                        inds.insert(ins,ind)
+        #             if rel_height >= bb_thr:
+        #                 ins = bisect(rel_heights,rel_height)
+        #                 rel_heights.insert(ins,rel_height)
+        #                 inds.insert(ins,ind)
 
-                out.append([texts[i].description for i in sorted(inds[-bb_count:])])
-
+        #         out.append([texts[i].description for i in sorted(inds[-bb_count:])])
+        
+        # NOTE: Empty list returned for keyframe with no text, text is very dirty
         return out
         
     # function for detecting and recognizing faces in keyframes
-    def facerec(self, identity, dist_thr=0.6, return_dists=False):
+    def facerec(self, identity, dist_thr=0.5161, return_dists=False):
         """ Detect and recognize faces in the set of keyframes that match the
         face provided in the given input.
 
@@ -320,7 +352,7 @@ class Keyframes(object):
 
         dist_thr : float, optional
             Minimum distance to `identity` face encoding to declare a match
-            between the faces. The default is 0.6.
+            between the faces. The default is 0.5161.
 
         return_dists : bool, optional
             Boolean flag for specifying whether or not to return the
@@ -347,14 +379,29 @@ class Keyframes(object):
             known_enc = identity
 
         # calculate all encodings
-        if not hasattr(self,'_unkn_encs'):
-            self._unkn_encs = [enc for im in self.ims
-                               for enc in face_recognition.face_encodings(
-                                       # convert to RGB
-                                       cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
-                                       )]
+        if not hasattr(self, '_unkn_encs'):
+            if dlib.DLIB_USE_CUDA:
+                self._unkn_encs = [enc for im in self.ims 
+                                           for enc in face_encodings(
+                                               cv2.cvtColor(im, cv2.COLOR_BGR2RGB),
+                                               face_locations(
+                                                   cv2.cvtColor(im, cv2.COLOR_BGR2RGB),
+                                                   model='cnn'),
+                                               model="large",
+                                               num_jitters=100
+                                               )]
+            else:
+                self._unkn_encs = [enc for im in self.ims 
+                                           for enc in face_encodings(
+                                               cv2.cvtColor(im, cv2.COLOR_BGR2RGB),
+                                               face_locations(
+                                                   cv2.cvtColor(im, cv2.COLOR_BGR2RGB),
+                                                   model='hog'),
+                                               model="large",
+                                               num_jitters=20
+                                               )]
 
-        dists = face_recognition.face_distance(self._unkn_encs,known_enc)
+        dists = face_recognition.face_distance(self._unkn_encs, known_enc)
 
         # return distances if specified, else return if any encoding is below
         # specified threshold
@@ -371,29 +418,29 @@ class Keyframes(object):
         h,w = self.resolution
         # resize dimensions, detection is somewhat sensitive to this
         # seems like this must be constant across calls unless the model is
-        # reloaded for each image... will have to look into this
+        # reloaded for each image
         new_w = 480
         # nearest (in aspect ratio) height that is a multiple of 32
         new_h = int(np.round(int(new_w/ar) / 32)) * 32
         # make copy to preserve original image
         copy = im.copy()
-        copy = cv2.resize(copy,(new_w,new_h))
+        copy = cv2.resize(copy, (new_w,new_h))
 
         # relevant layer names
         layers = ["feature_fusion/Conv_7/Sigmoid"]
 
         # construct blob and compute network outputs at `layers`
-        blob = cv2.dnn.blobFromImage(copy,1.0,(new_w,new_h),
-                    (123.68,116.78,103.94),swapRB=True,crop=False)
+        blob = cv2.dnn.blobFromImage(copy, 1.0, (new_w,new_h),
+                    (123.68,116.78,103.94), swapRB=True, crop=False)
         try:
-            text_net.setInput(blob)
+            _TEXT_NET.setInput(blob)
         except NameError:
             # model not loaded, print download_models message
             msg = 'Model data not installed. Please install the models by ' \
                   'typing the following command into the command line:\n\n' \
                   'download_models'
             raise Exception(msg)
-        scores = text_net.forward(layers)[0]
+        scores = _TEXT_NET.forward(layers)[0]
 
         # check if any bounding box scores exceed confidence threshold
         return np.any(scores[0,0] > score_thr)

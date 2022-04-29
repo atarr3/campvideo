@@ -5,3 +5,9 @@
 build/
 dist/
 *.egg-info/
+
+# API keys
+*.json
+
+# model files
+*.pb
