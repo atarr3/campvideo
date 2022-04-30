@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='campvideo',
-    version='1.0.0',
+    version='1.1.0',
     description='Analyzes political campaign advertisements.',
     long_description=open('README.rst').read() + '\n\n' + open('HISTORY.rst').read(),
     author='Alex Tarr',
@@ -25,17 +25,17 @@ setup(
     license='MIT License',
 	python_requires='>= 3.9',
     install_requires=[
-		"face_recognition >= 1.3",
-		"ffmpeg-python >= 0.2",
-		"google-cloud-videointelligence >= 2.7",
-		"google-cloud-vision >= 2.7",
-        "matplotlib >= 3.5",
-        "seaborn >= 0.11.2",
-		"numpy >= 1.21.0",
-		"opencv-python >= 4.5.5",
-		"pandas >= 1.3.4",
-		"scikit-learn >= 1.0.1",
-		"scipy >= 1.1.0",
-        "spacy == 3.3"
+		"face_recognition",
+		"ffmpeg-python",
+		"google-cloud-videointelligence>=2.7",
+		"google-cloud-vision>=2.7",
+        "matplotlib",
+        "seaborn>=0.11.0",
+		"numpy>=1.21",
+		"opencv-python>=4.5.5",
+		"pandas>=1.4",
+		"scikit-learn>=1.0",
+		"scipy>=1.7",
+        "spacy==3.3.0"
     ]
 )
