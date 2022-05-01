@@ -207,7 +207,8 @@ class Video:
             the user to display the next keyframe.
         """
         # get frames
-        frames = self.frames(np.atleast_1d(frame_ind))
+        frame_ind = np.atleast_1d(frame_ind)
+        frames = self.frames(frame_ind)
         # wait until key press if not specified
         if wait is None: wait = 0
         
