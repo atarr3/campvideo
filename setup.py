@@ -34,7 +34,7 @@ setup(
 		"numpy>=1.21",
 		"opencv-python>=4.5.5",
 		"pandas>=1.4",
-		"scikit-learn>=1.0",
+		"scikit-learn==1.0.1",
 		"scipy>=1.7",
         "spacy==3.3.0"
     ]
