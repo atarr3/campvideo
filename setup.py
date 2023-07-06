@@ -33,7 +33,7 @@ setup(
 		"opencv-python==4.5.5.64",
 		"pandas==1.4.2",
 		"scikit-learn==1.0.1",
-		"scipy==1.8.1",
+		"scipy==1.10.0",
         "spacy==3.3.0"
     ]
 )
